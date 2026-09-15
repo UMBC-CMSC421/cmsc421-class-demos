@@ -8,13 +8,17 @@ PROGRAMS = \
 	02_thread_args \
 	03_shared_counter_race \
 	04_mutex_counter_fix \
-	06_word_count_threads
+	06_word_count_threads \
+	07_threads_vs_processes
 
 OPTIONAL_PROGRAMS = 05_openmp_intro
 
 .PHONY: all clean
 
 all: $(PROGRAMS) $(OPTIONAL_PROGRAMS)
+
+07_threads_vs_processes: 07_threads_vs_processes.c
+	$(CC) $(CFLAGS) $(PTHREADFLAGS) $< -o $@
 
 01_pthread_create_join: 01_pthread_create_join.c
 	$(CC) $(CFLAGS) $(PTHREADFLAGS) $< -o $@

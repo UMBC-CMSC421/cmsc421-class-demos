@@ -22,6 +22,7 @@ Students should be able to:
 4. `04_mutex_counter_fix.c` — repair the race with a mutex
 5. `05_openmp_intro.c` — optional OpenMP hello demo
 6. `06_word_count_threads.c` — mini-program showing work splitting and joins
+7. `07_threads_vs_processes.c` — threads share one PID and its memory (each has its own TID); a forked child gets its own copy. While it waits, run `ps -L -p <PID>`
 
 ## Build
 

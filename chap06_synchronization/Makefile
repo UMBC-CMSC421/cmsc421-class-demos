@@ -7,11 +7,15 @@ PROGRAMS = \
 	02_mutex \
 	03_semaphore_producer_consumer \
 	04_condition_variable \
-	05_deadlock_demo
+	05_deadlock_demo \
+	06_process_race_and_deadlock
 
 .PHONY: all clean
 
 all: $(PROGRAMS)
+
+06_process_race_and_deadlock: 06_process_race_and_deadlock.c
+	$(CC) $(CFLAGS) $< -o $@
 
 01_race_condition: 01_race_condition.c
 	$(CC) $(CFLAGS) $(PTHREADFLAGS) $< -o $@

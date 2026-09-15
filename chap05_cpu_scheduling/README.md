@@ -21,6 +21,7 @@ Students should be able to:
 3. `03_rr_sim.c` — Round Robin with configurable quantum
 4. `04_priority_sim.c` — Priority scheduling (non-preemptive)
 5. `05_posix_sched_demo.c` — inspect scheduler policy for the current process
+6. `06_nice_cpu_share.c` — two CPU-bound processes on one CPU at nice 0 and nice 10: measured CPU share (about 90% : 10%) against the Linux scheduler's weights (Linux only)
 
 ## Build
 

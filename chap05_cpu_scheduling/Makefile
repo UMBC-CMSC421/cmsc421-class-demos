@@ -6,7 +6,8 @@ PROGRAMS = \
 	02_sjf_sim \
 	03_rr_sim \
 	04_priority_sim \
-	05_posix_sched_demo
+	05_posix_sched_demo \
+	06_nice_cpu_share
 
 .PHONY: all clean
 
