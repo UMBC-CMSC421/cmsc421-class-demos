@@ -1,0 +1,13 @@
+# This file is used internally by FFMPEG.
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/2590661511_2269096460_223132457.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_2885128297_2576746407.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_1814053420_1323178355.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_4079250704_3051063294.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_2820640387_3416813091.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_4079250704_789993183.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_2647613593_3788746609.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_2302640440_3588539261.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_3703883090_1155617063.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_2988435495_2122646161.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_2761946757_3149314590.mp4'
+file 'file:/Users/sanaa/Dev/github/CMSC421_ Material/CMSC421_Class_Demos/chap09_memory_management/media/videos/paging/768p15/partial_movie_files/PagingExampleSlide/1455741681_2872842549_3159689075.mp4'
