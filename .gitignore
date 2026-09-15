@@ -1,0 +1,72 @@
+# CMSC421_Class_Demos: only course sources are tracked (.c .h .py .sh, Makefiles,
+# READMEs, numbered lecture docs). To track a file a rule below hides: git add -f <file>
+
+# ---- Compiled output -------------------------------------------------------
+# make builds 01_proc_identity.c into 01_proc_identity, so ignore every file
+# without an extension, then allow back folders, files with an extension, and Makefiles.
+*
+!*/
+!*.*
+!Makefile
+
+*.o
+*.a
+*.so
+*.out
+*.dSYM/
+core.[0-9]*
+
+# Kernel module builds
+*.ko
+*.mod
+*.mod.c
+*.cmd
+.tmp_versions/
+Module.symvers
+modules.order
+
+# Python bytecode and Manim renders (rebuilt from the .py scenes)
+__pycache__/
+*.pyc
+media/
+
+# ---- Personal notes and AI-generated files ---------------------------------
+# Markdown is local unless it is a README or a numbered lecture doc (01_*.md).
+*.md
+!README.md
+![0-9][0-9]_*.md
+
+*notes*
+*Notes*
+*NOTES*
+*.txt
+*.docx
+*.pdf
+
+.claude/
+.codex/
+.cursor/
+.gemini/
+.aider*
+
+# ---- Course VM (lives in ~/CMSC421-Debian12-arm64) --------------------------
+start-vm.sh
+ssh-vm.sh
+install-vm.sh
+sync-demos.sh
+*-vm.sh
+vm-*.sh
+vm_key*
+installer/
+*.qcow2
+*.img
+*.iso
+*.fd
+*.sock
+*.log
+
+# ---- OS and editor clutter -------------------------------------------------
+.DS_Store
+.vscode/
+*.swp
+*~
