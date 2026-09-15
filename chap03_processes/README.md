@@ -65,9 +65,7 @@ Concepts* (mostly chapter 4). The Fox column is the section in the book.
 | 20 | `./20_context_switches` | 4.2.2 | voluntary vs involuntary context switches |
 | 21 | `./21_proc_tour.sh` | 10.5.2 | reading a process's PCB out of `/proc/<PID>` |
 
-The book was written for CentOS 6, so some of it is out of date on Debian 12.
-`FOX_BOOK_NOTES.md` lists those spots and which demo shows the difference.
-
+The book I used for writing most of this code was written for CentOS 6, so some of it is out of date on Debian 12. But you can go on the offical Debian website which will include other example code as well.
 ## Watching any process
 
 These work on any demo that stays alive long enough to look at (07, 08, 11, 14,
@@ -99,17 +97,3 @@ The STAT column in `ps`:
   back, and `kill %1` ends job number 1.
 - Leftover processes from a demo: `pkill <program name>`, for example
   `pkill 14_state_codes`. `ps -u $USER` shows everything you're running.
-
-## Other things in this folder
-
-- `FOX_BOOK_NOTES.md`: where the Fox book and Debian 12 disagree.
-- `archive_textbook_examples/`: the original sample code from the textbook. It's
-  kept for reference, but the Makefile doesn't build it. Some of it is incomplete
-  or Windows only. Use the numbered demos instead.
-
-Related demos in other folders: `chap04_threads/07_threads_vs_processes.c`,
-`chap05_cpu_scheduling/06_nice_cpu_share.c`,
-`chap06_synchronization/06_process_race_and_deadlock.c`, and
-`chap10_virtual_memory/02_memory_limits_oom.sh`. Topics that don't have a chapter
-folder yet (system calls, systemd, cron and at, namespaces) are in
-`Lecture_Material/extra_linux_demos/`.
