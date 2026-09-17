@@ -42,12 +42,15 @@ log=$(mktemp)
 trap 'rm -f "$log"; pkill -f "^sleep 91[1-5]$" 2>/dev/null' EXIT
 
 # The commands we'll "type" into the pretend terminal. %% means the most recent job.
+# The sleep 0.2 lets job 915 finish exec'ing sleep before we stop it. Stopped any
+# earlier, it would still be named bash, and ps -C sleep wouldn't list it.
 jobs_to_start='sleep 911 &
 nohup sleep 912 >/dev/null 2>&1 &
 setsid sleep 913 &
 sleep 914 &
 disown
 sleep 915 &
+sleep 0.2
 kill -STOP %%
 '
 

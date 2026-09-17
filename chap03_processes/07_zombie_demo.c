@@ -47,12 +47,14 @@ int main(void)
 {
     pid_t pid = fork();
 
-    if (pid < 0) {
+    if (pid < 0)
+    {
         perror("fork");
         return 1;
     }
 
-    if (pid == 0) {
+    if (pid == 0)
+    {
         /* Child: say hi and exit right away. From here on it's a zombie until reaped. */
         printf("[child ] exiting immediately; parent PID=%ld\n", (long)getppid());
         fflush(stdout);
@@ -68,12 +70,14 @@ int main(void)
 
     /* Now reap it. This is the moment the zombie entry gets removed. */
     int status = 0;
-    if (waitpid(pid, &status, 0) < 0) {
+    if (waitpid(pid, &status, 0) < 0)
+    {
         perror("waitpid");
         return 1;
     }
 
-    if (WIFEXITED(status)) {
+    if (WIFEXITED(status))
+    {
         printf("[parent] reaped child; exit status=%d\n", WEXITSTATUS(status));
     }
 

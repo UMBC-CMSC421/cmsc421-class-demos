@@ -17,8 +17,18 @@
  *   ./09_context_switch_pressure 500      any number from 1 to 500
  *
  * What to look for
- *   The program only prints a one-line summary. The interesting numbers come from the
- *   tools below.
+ *   The program times itself and asks the kernel (getrusage) for its own counters:
+ *     - how long each fork + exit + reap took, on average. Compare 50 with 500: the
+ *       per-child cost stays about the same, so the total grows with the count.
+ *     - the parent's CPU time: almost all of it is sys, time the kernel spent working
+ *       for us (copying the process, tearing it down), and user is close to 0. This
+ *       program barely runs any code of its own.
+ *     - the parent's context switches. A voluntary one happens when wait() has to block
+ *       because no child has exited yet. On a multi-core machine the children run and
+ *       exit on other CPUs while the parent is still forking, so the count is often 0.
+ *       Try  taskset -c 0 ./09_context_switch_pressure 50  to put everything on one
+ *       CPU. Now the children have to take turns with the parent, and the numbers
+ *       change. The exact counts depend on the scheduler, which is the point.
  *
  * Other ways to see it
  *   time ./09_context_switch_pressure 500
@@ -40,8 +50,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <sys/resource.h> /* getrusage() */
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #define MAX_CHILDREN 500L /* a cap, so nobody floods the machine with processes by accident */
@@ -69,6 +81,12 @@ static long parse_count(const char *s)
     return value;
 }
 
+/* A struct timeval (seconds + microseconds) as a double number of seconds. */
+static double seconds_of(struct timeval tv)
+{
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1e6;
+}
+
 int main(int argc, char *argv[])
 {
     long count = 100; /* used when you don't give a number */
@@ -84,6 +102,11 @@ int main(int argc, char *argv[])
 
     long created = 0; /* how many children we actually managed to make */
     int fork_failed = 0;
+    struct timespec start;
+    struct timespec end;
+
+    /* CLOCK_MONOTONIC is a stopwatch: it only moves forward, even if someone changes the date. */
+    (void)clock_gettime(CLOCK_MONOTONIC, &start);
 
     /* Make the children. */
     for (long i = 0; i < count; i++) {
@@ -111,7 +134,30 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("Created and reaped %ld short-lived children.\n", created);
-    printf("This demonstrates fork/exit/wait and scheduler pressure; it is not a pure context-switch benchmark.\n");
+    (void)clock_gettime(CLOCK_MONOTONIC, &end);
+    double elapsed = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec) / 1e9;
+
+    /*
+     * getrusage() returns the kernel's bookkeeping for a process. RUSAGE_SELF is this
+     * process. RUSAGE_CHILDREN is all the children we've reaped, added together.
+     */
+    struct rusage self;
+    struct rusage children;
+    (void)getrusage(RUSAGE_SELF, &self);
+    (void)getrusage(RUSAGE_CHILDREN, &children);
+
+    printf("Created and reaped %ld short-lived children in %.3f s", created, elapsed);
+    if (created > 0) {
+        printf(" (about %.0f microseconds each)", elapsed * 1e6 / (double)created);
+    }
+    printf("\n");
+#ifdef __linux__ /* macOS hides these two counters in strict POSIX mode */
+    printf("  parent context switches:  %ld voluntary, %ld involuntary\n", self.ru_nvcsw, self.ru_nivcsw);
+#endif
+    printf("  parent CPU time:          user %.3f s, sys %.3f s\n",
+           seconds_of(self.ru_utime), seconds_of(self.ru_stime));
+    printf("  children's CPU time:      user %.3f s, sys %.3f s\n",
+           seconds_of(children.ru_utime), seconds_of(children.ru_stime));
+    printf("A rough feel for what a process costs, not a precise benchmark.\n");
     return fork_failed ? 1 : 0;
 }
