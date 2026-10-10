@@ -30,24 +30,7 @@ __pycache__/
 *.pyc
 media/
 
-# ---- Personal notes and AI-generated files ---------------------------------
-# Markdown is local unless it is a README or a numbered lecture doc (01_*.md).
-*.md
-!README.md
-![0-9][0-9]_*.md
-
-*notes*
-*Notes*
-*NOTES*
-*.txt
-*.docx
-*.pdf
-
-.claude/
-.codex/
-.cursor/
-.gemini/
-.aider*
+instructor/
 
 # ---- Course VM (lives in ~/CMSC421-Debian12-arm64) --------------------------
 start-vm.sh
