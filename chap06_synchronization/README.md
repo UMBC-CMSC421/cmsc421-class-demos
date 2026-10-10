@@ -1,24 +1,24 @@
-# Chapter 6 — Synchronization Tools
+# Chapter 6: Synchronization Tools
 
-These demos focus on races, mutual exclusion, semaphores, condition variables,
-and deadlock patterns. They are designed for classroom demonstration and discussion.
+Run these on the course Linux VM. You'll want at least 2 CPUs (check with `nproc`). They won't build on macOS.
 
-## Learning Goals
+## Start here: the race condition
 
-Students should be able to:
+[01_race_condition.c](01_race_condition.c) is the problem the whole chapter is about. A few threads add 1 to the same counter with no lock, and updates get lost.
 
-- define a race condition
-- explain why mutual exclusion is needed
-- use `pthread_mutex_t`
-- use semaphores for producer-consumer style coordination
-- use condition variables to wait for state changes
-- explain one way deadlock can arise
+```sh
+gcc -O2 -Wall -pthread 01_race_condition.c -o race
+./race                 # 2 threads
+./race 8 20000000      # 8 threads, 20,000,000 adds each
+```
 
-## Demos
+`Actual` should come out way below `Expected`, and different every time.
 
-1. `01_race_condition.c` — unsynchronized increment race
-2. `02_mutex.c` — protect a critical section with a mutex
-3. `03_semaphore_producer_consumer.c` — bounded buffer with semaphores
-4. `04_condition_variable.c` — wait and signal with a condition variable
-5. `05_deadlock_demo.c` — deliberate deadlock from inconsistent lock order
-6. `06_process_race_and_deadlock.c` — the same problems between processes sharing a file: lost updates without a lock and none with `flock`; an `fcntl` deadlock the kernel refuses with `EDEADLK`, next to an `flock` deadlock it never detects (Linux only)
+## Then the two lectures
+
+| Folder | What's in it |
+|---|---|
+| [day1/](day1/) | One counter, fixed step by step: taking turns, Peterson's, a memory fence, test-and-set, compare-and-swap, atomics |
+| [day2/](day2/) | The real tools: mutex, spinlock, reader-writer lock, semaphore, condition variable, and deadlock |
+
+Each folder has its own README and Makefile. `make` builds everything, and `make run` runs it all in lecture order. The comment at the top of every file tells you which slides it goes with and what you should see.

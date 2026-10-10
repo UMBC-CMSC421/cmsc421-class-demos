@@ -1,19 +1,20 @@
-// demo1_race_counter.c
-// Demonstrates a data race on counter++ with pthreads.
-//
-// counter++ is not atomic. It is a read-modify-write sequence.
-// With multiple threads and no synchronization, updates can be lost.
-//
-// BUILD: gcc -O2 -pthread demo1_race_counter.c -o demo1
-// RUN:   ./demo1 2 50000000
-//        ./demo1 8 20000000
+// 01_race_condition.c: threads add 1 to a shared counter with no lock, and updates get lost.
+// This is the problem all of Chapter 6 is about. After this, go to day1/, then day2/.
+// counter++ is really three steps: load, add, store. Two threads can load the
+// same value, and then one of the adds gets lost.
+// counter is volatile so gcc -O2 doesn't squash the loop into one big add and
+// hide the race. It doesn't make anything atomic.
+// EXPECT: Actual comes out way below Expected, and different every run.
+// BUILD: gcc -O2 -Wall -pthread 01_race_condition.c -o race
+// RUN:   ./race                 2 threads, 50,000,000 adds each
+//        ./race 8 20000000      8 threads, 20,000,000 each
 
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 
-static int64_t counter = 0;   // shared variable, not synchronized
+static volatile int64_t counter = 0;   // shared by every thread, no lock
 
 typedef struct {
     int64_t iters;
