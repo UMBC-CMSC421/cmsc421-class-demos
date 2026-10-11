@@ -1,13 +1,14 @@
-// thread_spawn_demo.c
-// Focus: create N threads, name them on macOS, print their thread IDs.
-// How-Build: cc -Wall -Wextra -pthread -o thread_demo thread_spawn_demo.c
+// threads.c
+// Focus: create N threads, name them, print their thread IDs.
+// How-Build: make archive (or: cc -Wall -Wextra -pthread -o threads threads.c)
+// See the named threads while the workers sleep:
+//   ./threads & ps -L -o pid,tid,comm -p $!
 
-#define _DARWIN_C_SOURCE 1 // Enable macOS-specific APIs (e.g., pthread_threadid_np, pthread_setname_np).
+#define _GNU_SOURCE        // Enable Linux-specific APIs (gettid, pthread_setname_np).
 #include <pthread.h>       // POSIX threads API: pthread_t, pthread_create, pthread_join, etc.
 #include <stdio.h>         // printf, fprintf, perror, puts
 #include <stdlib.h>        // atoi, calloc, free
-#include <stdint.h>        // uint64_t
-#include <unistd.h>        // sleep
+#include <unistd.h>        // sleep, getpid, gettid
 
 // A small per-thread argument bundle. This is just the thread "index".
 typedef struct
@@ -15,24 +16,12 @@ typedef struct
     int index; // Which worker number this is (0..N-1)
 } thread_arg_t;
 
-// Helper function to print a label and the current thread's ID in a stable way on macOS.
+// Print a label, the process ID, and the current thread's ID.
 static void print_thread_id(const char *label)
 {
-    uint64_t tid = 0; // We'll store a numeric thread ID here.
-
-    // macOS-specific; returns a stable numeric thread id for teaching purposes.
-    // Passing NULL means "the current thread".
-    if (pthread_threadid_np(NULL, &tid) == 0)
-    {
-        // %llu because tid is 64-bit; cast to unsigned long long for printf portability.
-        printf("%s: pthread_threadid_np = %llu\n", label, (unsigned long long)tid);
-    }
-    else
-    {
-        // Fallback: show pthread_self(). It's opaque (not a real numeric ID),
-        // but okay for demo purposes when the macOS call fails or on other platforms.
-        printf("%s: pthread_self = %p\n", label, (void *)pthread_self());
-    }
+    // Every thread has a kernel thread ID (TID); all threads share the process's PID.
+    // These are the same numbers ps -L and /proc/<PID>/task show.
+    printf("%s: PID %ld  TID %ld\n", label, (long)getpid(), (long)gettid());
 }
 
 // The function each worker thread will run.
@@ -42,18 +31,18 @@ void *worker(void *arg)
     // Recover our typed pointer from the generic void*.
     thread_arg_t *a = (thread_arg_t *)arg;
 
-    // On macOS, the only thread you can name is the *current* one.
-    // We'll build a name like "worker-3".
+    // We'll build a name like "worker-3". Linux limits thread names to 15 characters.
     char name[32];
     snprintf(name, sizeof(name), "worker-%d", a->index);
 
-    // Name this thread (macOS-specific). On success, debuggers and tools show this name.
-    pthread_setname_np(name);
+    // Name this thread. ps -L -o comm and gdb show this name.
+    // The _np suffix means non-portable: this call is a Linux extension, not standard POSIX.
+    pthread_setname_np(pthread_self(), name);
 
     // Print a label and this thread's ID so students can correlate names to IDs.
     print_thread_id(name);
 
-    // Keep the thread alive briefly so tools (ps/LLDB/Activity Monitor) can see it.
+    // Keep the thread alive briefly so tools (ps, top -H, gdb) can see it.
     sleep(5);
 
     // Returning NULL is equivalent to calling pthread_exit(NULL).

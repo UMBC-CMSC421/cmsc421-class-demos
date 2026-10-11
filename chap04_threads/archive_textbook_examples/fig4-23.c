@@ -22,7 +22,7 @@
 int value = 0;
 void *runner(void *param); /* the thread */
 
-int main(int argc, char *argv[])
+int main(void)
 {
 	pid_t pid;
 	pthread_t tid; pthread_attr_t attr;
@@ -32,15 +32,17 @@ int main(int argc, char *argv[])
 		pthread_attr_init(&attr);
 		pthread_create(&tid,&attr,runner,NULL); 
 		pthread_join(tid,NULL);
-    		printf("CHILD: value = %d",value); /* LINE C */
+    		printf("CHILD: value = %d\n",value); /* LINE C */
 	}
 	else if (pid > 0) { /* parent process */
 		wait(NULL);
-    		printf("PARENT: value = %d",value); /* LINE P */
+    		printf("PARENT: value = %d\n",value); /* LINE P */
 	} 
+	return 0;
 }
 
 void *runner(void *param) { 
+	(void)param; /* unused */
 	value = 5;
 	pthread_exit(0);
 }

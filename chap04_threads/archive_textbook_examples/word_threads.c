@@ -12,14 +12,24 @@ pthread_mutex_t doc_mutex;     // Mutex to synchronize access to document
 // Simulated user input function
 void *user_input_thread(void *arg)
 {
+    (void)arg; // unused
+    char line[MAX_DOC_LENGTH]; // Private to this thread, so reading into it needs no lock
+
     while (1)
     {
-        pthread_mutex_lock(&doc_mutex);
         printf("Type something: ");
-        fgets(document, MAX_DOC_LENGTH, stdin);
-        document[strcspn(document, "\n")] = 0; // Remove newline character
+        fflush(stdout);
+
+        // Wait for the user WITHOUT holding the mutex. Holding it across fgets() would
+        // block spell check, autosave and printing until the user presses Enter.
+        if (fgets(line, MAX_DOC_LENGTH, stdin) == NULL)
+            break;                     // End of input (Ctrl-D)
+        line[strcspn(line, "\n")] = 0; // Remove newline character
+
+        // Hold the mutex only for the short copy into the shared document.
+        pthread_mutex_lock(&doc_mutex);
+        strcpy(document, line);
         pthread_mutex_unlock(&doc_mutex);
-        sleep(1);
     }
     return NULL;
 }
@@ -27,6 +37,7 @@ void *user_input_thread(void *arg)
 // Simulated spell check function
 void *spell_check_thread(void *arg)
 {
+    (void)arg; // unused
     while (1)
     {
         sleep(3); // Simulate time taken for spell check
@@ -40,6 +51,7 @@ void *spell_check_thread(void *arg)
 // Simulated autosave function
 void *autosave_thread(void *arg)
 {
+    (void)arg; // unused
     while (1)
     {
         sleep(5); // Save every 5 seconds
@@ -53,6 +65,7 @@ void *autosave_thread(void *arg)
 // Simulated print function
 void *print_thread(void *arg)
 {
+    (void)arg; // unused
     while (1)
     {
         sleep(10); // Print every 10 seconds
@@ -63,7 +76,7 @@ void *print_thread(void *arg)
     return NULL;
 }
 
-int main()
+int main(void)
 {
     pthread_t input_tid, spell_tid, autosave_tid, print_tid;
 
