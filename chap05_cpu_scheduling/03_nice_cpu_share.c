@@ -1,51 +1,72 @@
 /*
  * Chapter 5: CPU Scheduling
- * Demo 06: Niceness decides CPU share
+ * Demo 03: The nice value decides each process's share of the CPU
  *
- * What this demo shows:
- * - Two CPU-bound children forced onto the same CPU compete for it.
- * - The child with the higher nice value (lower priority) receives much less CPU
- *   time (Fox 4.5). Linux's scheduler gives each nice level a weight: nice 0 is 1024,
- *   nice 10 is 110, so the split is about 90% : 10%.
- * - An ordinary user may raise niceness but may not lower it (Permission denied).
+ * What's going on
+ *   Two CPU-bound children are pinned to the same CPU, so they have to share it.
+ *   One runs at nice 0, the other at a higher nice value, which means lower
+ *   priority (Fox 4.5). The Linux scheduler (CFS on the course VM) gives each nice
+ *   level a weight, and each process gets CPU time in proportion to its weight.
+ *   CPU share = my weight / total weight. The "Nice Values Become Weights" slide
+ *   uses nice 0 (weight 1024) and nice 5 (weight 335): 1024 / 1359 = 75% and
+ *   335 / 1359 = 25%. That's the default here.
  *
- * Run:
- *   ./06_nice_cpu_share             nice 0 vs nice 10 for 3 seconds
- *   ./06_nice_cpu_share 19 5        nice 0 vs nice 19 for 5 seconds
- * While it runs, in another terminal:
- *   ps -o pid,ni,pri,psr,%cpu,cmd -C 06_nice_cpu_sh      (names are cut to 15 characters)
+ *   At the end the parent tries to lower its own nice value to -5. An ordinary user
+ *   may raise a nice value but not lower it, so that fails unless you are root.
+ *
+ * Build
+ *   make
+ *
+ * Run
+ *   ./03_nice_cpu_share             nice 0 vs nice 5 for 3 seconds
+ *   ./03_nice_cpu_share 10          nice 0 vs nice 10
+ *   ./03_nice_cpu_share 19 5        nice 0 vs nice 19 for 5 seconds
+ *
+ * What to look for
+ *   The measured percentages land close to the one the weights predict. On the course
+ *   VM nice 10 got 9.9% against a prediction of 9.7%.
+ *   The last line says Permission denied when you are not root.
+ *
+ * Other ways to see it
+ *   While it runs, in another terminal:
+ *     ps -o pid,ni,pri,psr,%cpu,cmd -C 03_nice_cpu_sha
+ *   (ps matches only the first 15 characters of a program name.) NI is the nice
+ *   value and PSR the CPU: 0 for both children.
  */
-#define _GNU_SOURCE
-#include <errno.h>
-#include <sched.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <time.h>
-#include <unistd.h>
+#define _GNU_SOURCE       /* needed for sched_setaffinity(), wait4(), and the cpu_set_t macros */
+#include <errno.h>        /* errno */
+#include <sched.h>        /* cpu_set_t, sched_setaffinity() */
+#include <stdio.h>        /* printf(), fprintf(), perror() */
+#include <stdlib.h>       /* strtol() */
+#include <string.h>       /* strerror() */
+#include <sys/resource.h> /* setpriority(), struct rusage */
+#include <sys/time.h>     /* struct timeval */
+#include <sys/wait.h>     /* wait4() */
+#include <time.h>         /* clock_gettime() */
+#include <unistd.h>       /* fork(), getuid(), _exit() */
 
-/* Scheduler weight for nice 0..19 (kernel/sched/core.c, sched_prio_to_weight). */
+/* The scheduler's weight for nice 0 to 19, copied from sched_prio_to_weight in the kernel source. */
 static const double nice_weight[20] = {
     1024, 820, 655, 526, 423, 335, 272, 215, 172, 137,
     110, 87, 70, 56, 45, 36, 29, 23, 18, 15,
 };
 
+/* Convert a timeval (seconds plus microseconds) to seconds. */
 static double seconds(struct timeval tv)
 {
     return (double)tv.tv_sec + (double)tv.tv_usec / 1e6;
 }
 
+/* Fork a child that pins itself to CPU 0, sets its nice value, and spins for run_seconds. */
 static pid_t start_worker(int niceness, int run_seconds)
 {
     pid_t pid = fork();
 
     if (pid != 0) {
-        return pid;
+        return pid; /* the parent (or a failed fork, -1) goes back to main */
     }
 
+    /* Child: allow only CPU 0. */
     cpu_set_t first_cpu;
     CPU_ZERO(&first_cpu);
     CPU_SET(0, &first_cpu);
@@ -53,11 +74,17 @@ static pid_t start_worker(int niceness, int run_seconds)
         perror("sched_setaffinity");
         _exit(1);
     }
+    /* Set this process's nice value. 0 means "this process". */
     if (setpriority(PRIO_PROCESS, 0, niceness) < 0) {
         perror("setpriority");
         _exit(1);
     }
 
+    /*
+     * Spin until run_seconds of real time have passed. Both children stop at the same
+     * moment, so the CPU time each one got shows its share. volatile keeps the compiler
+     * from deleting the loop as useless.
+     */
     struct timespec now;
     struct timespec deadline;
     volatile unsigned long spins = 0;
@@ -76,9 +103,10 @@ static pid_t start_worker(int niceness, int run_seconds)
 
 int main(int argc, char *argv[])
 {
-    int low_nice = 10;
+    int low_nice = 5;
     int run_seconds = 3;
 
+    /* Optional arguments: the second child's nice value, then how many seconds to run. */
     if (argc > 1) {
         low_nice = (int)strtol(argv[1], NULL, 10);
     }
@@ -93,6 +121,7 @@ int main(int argc, char *argv[])
     printf("Two busy children pinned to CPU 0 for %d s: nice 0 versus nice %d\n", run_seconds, low_nice);
     fflush(stdout);
 
+    /* Start both children, then wait for each. wait4() also returns the child's CPU time. */
     pid_t normal = start_worker(0, run_seconds);
     pid_t polite = start_worker(low_nice, run_seconds);
     struct rusage normal_usage;
@@ -108,6 +137,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /* CPU time = user time + system time. Compare each child's share with the weights. */
     double normal_cpu = seconds(normal_usage.ru_utime) + seconds(normal_usage.ru_stime);
     double polite_cpu = seconds(polite_usage.ru_utime) + seconds(polite_usage.ru_stime);
     double total = normal_cpu + polite_cpu;
@@ -117,6 +147,7 @@ int main(int argc, char *argv[])
     printf("  nice %2d  PID %-6ld CPU time %5.2f s  %5.1f%%\n", low_nice, (long)polite, polite_cpu, 100.0 * polite_cpu / total);
     printf("  scheduler weights predict %.1f%% for nice %d\n", predicted, low_nice);
 
+    /* Try to lower our own nice value, which only root may do. */
     if (setpriority(PRIO_PROCESS, 0, -5) < 0) {
         printf("\nsetpriority(this process, nice -5) as UID %ld: %s\n", (long)getuid(), strerror(errno));
         printf("  lowering niceness (raising priority) requires root\n");
