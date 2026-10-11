@@ -30,17 +30,22 @@
  *   fails, perror says why, and the parent sees exit status 127. That's the same
  *   number bash uses for "command not found".
  */
-#include <stdio.h>
+#include <stdio.h>     /* printf(), perror() */
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <sys/types.h> /* pid_t */
+#include <sys/wait.h>  /* waitpid() and the W... macros */
+#include <unistd.h>    /* fork(), execv(), _exit() */
 
 int main(void)
 {
+    /*
+     * Step 1: fork(). pid_t is the integer type for process IDs. The child gets 0
+     * back, the parent gets the child's PID, and -1 means it failed.
+     */
     pid_t pid = fork();
 
     if (pid < 0) {
+        /* perror() prints our label plus the reason the call failed. */
         perror("fork");
         return 1;
     }
@@ -48,7 +53,9 @@ int main(void)
     if (pid == 0) {
         /*
          * The argument list for the new program. By convention argv[0] is the
-         * program's own name, and the list has to end with NULL.
+         * program's own name, and the list has to end with NULL so execv knows where
+         * it stops. char *const argv[] reads as "an array of string pointers that
+         * won't be changed".
          */
         char *const argv[] = {"echo", "Hello from exec()", NULL};
 
@@ -59,16 +66,27 @@ int main(void)
          * buffer. Anything we haven't flushed yet would never get printed.
          */
         fflush(stdout);
+        /*
+         * Step 2: exec. The v in execv means the arguments come as an array (a
+         * "vector"). The first argument is the full path of the program to load.
+         */
         execv("/bin/echo", argv);
 
-        /* We only get here if execv failed. */
+        /*
+         * We only get here if execv failed. _exit() ends the child right away without
+         * flushing the copy of printf's buffer it got from the parent (demo 04 explains
+         * why). 127 is the exit code the parent will see.
+         */
         perror("execv");
         _exit(127);
     }
 
     int status = 0;
 
-    /* The parent waits for the child. status gets filled in with how the child ended. */
+    /*
+     * The parent waits for the child. We pass &status (the address of status) so
+     * waitpid() can write into it how the child ended. 0 means no special options.
+     */
     if (waitpid(pid, &status, 0) < 0) {
         perror("waitpid");
         return 1;

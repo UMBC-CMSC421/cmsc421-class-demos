@@ -28,25 +28,30 @@
  *       On Linux, fork() is really a system call named clone, and you can see it
  *       return the child's PID. wait4 is what waitpid() turns into.
  */
-#include <stdio.h>
+#include <stdio.h>     /* printf(), perror() */
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <sys/types.h> /* pid_t */
+#include <sys/wait.h>  /* waitpid() */
+#include <unistd.h>    /* fork(), getpid(), getppid(), _exit() */
 
 int main(void)
 {
+    /* pid_t is the integer type the system uses for process IDs. */
     pid_t pid = fork();
 
-    /* From this line on, two processes are running this code. */
+    /*
+     * From this line on, two processes are running this code. Each one has its own
+     * copy of the variable pid, and fork() put a different value in each copy.
+     */
 
     if (pid < 0) {
+        /* perror() prints our label plus the reason the call failed. */
         perror("fork");
         return 1;
     }
 
     if (pid == 0) {
-        /* Only the child gets in here. */
+        /* Only the child gets in here. The (long) casts make each ID match %ld. */
         printf("[child ] PID=%ld PPID=%ld\n", (long)getpid(), (long)getppid());
         printf("[child ] fork() returned %ld in the child\n", (long)pid);
 
@@ -69,6 +74,8 @@ int main(void)
      * Wait for this particular child to finish. After a child exits, it sticks around
      * as a zombie until its parent collects it like this (see demo 07). Collecting a
      * finished child is called "reaping" it.
+     * The arguments: which child, NULL because we don't care how it ended, and 0 for
+     * no special options. waitpid() blocks (the parent sleeps) until that child is done.
      */
     if (waitpid(pid, NULL, 0) < 0) {
         perror("waitpid");

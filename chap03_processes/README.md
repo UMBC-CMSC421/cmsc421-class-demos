@@ -11,8 +11,8 @@ in the code have comments too.
 
 ## Before you start
 
-- Use the course Linux VM. Demos 01 to 10 also build on a Mac, but 11 to 21 only
-  work on Linux, and most of the tools in the "other ways to see it" sections
+- Use the course Linux VM. Demos 01 to 10, 22 to 25, and 30 also build on a Mac, but
+  11 to 21, 26 to 29, and 31 only work on Linux, and most of the tools in the "other ways to see it" sections
   (`/proc`, `strace`, GNU `ps`) are Linux only.
 - Open two terminals side by side. A lot of these demos have you run the program
   in one terminal and look at it from the other.
@@ -26,8 +26,8 @@ in the code have comments too.
 ```bash
 make                  # build every demo
 make 04_fork_basics   # build just one
-make smoke            # quick check that 01-10 run (skips 07 and 08, which take a while)
-make smoke-linux      # quick check that 12-21 run (Linux only, about 20 seconds)
+make smoke            # quick check that 01-10, 22-25, and 30 run (skips 07 and 08, which take a while)
+make smoke-linux      # quick check that 12-21 and 26-31 run (Linux only, about 30 seconds)
 make clean            # delete the built programs
 ```
 
@@ -38,7 +38,7 @@ make clean            # delete the built programs
 | 01 | `./01_proc_identity` | a process's PID and its parent's PID |
 | 02 | `./02_process_attributes` | process group, session, and user IDs |
 | 03 | `./03_memory_layout` | where globals, the heap, and the stack sit in memory |
-| 04 | `./04_fork_basics` | `fork()` returning twice, with a different value each time |
+| 04 | `./04_fork_basics` | one `fork()` call, a different return value in parent and child |
 | 05 | `./05_fork_cow` | parent and child changing "the same" variable separately |
 | 06 | `./06_fork_exec` | a child turning into a different program with `exec` |
 | 07 | `./07_zombie_demo` | a zombie process for 10 seconds (use a second terminal) |
@@ -64,8 +64,55 @@ Concepts* (mostly chapter 4). The Fox column is the section in the book.
 | 19 | `./19_orphan_subreaper` | 4.6.1 | who adopts a process after its parent dies |
 | 20 | `./20_context_switches` | 4.2.2 | voluntary vs involuntary context switches |
 | 21 | `./21_proc_tour.sh` | 10.5.2 | reading a process's PCB out of `/proc/<PID>` |
+| 32 | `./32_program_vs_process.sh` | 3.1 | a program is a file; a process is that file running (two PIDs, one file) |
+| 33 | `./33_stack_frames` | 3.1 | where stack frames live: each call's frame is lower in memory; a global is not on the stack |
 
 The book I used for writing most of this code was written for CentOS 6, so some of it is out of date on Debian 12. But you can go on the offical Debian website which will include other example code as well.
+## Part 3: Lectures 2 and 3 (22 to 31)
+
+| # | Run | What you'll see |
+|---|---|---|
+| 22 | `./22_fork_count_buffering`, then `./22_fork_count_buffering \| wc -l` | 8 processes; 4 lines to the terminal but 8 through a pipe (flush before fork) |
+| 23 | `./23_wait_status` | raw wait status vs. the macros: exit(3) is 768 raw; SIGKILL shows as 137 in the shell |
+| 24 | `./24_pipe_closing ok` (also `writer-keeps`, `reader-keeps`, `writer-keeps-read`, `reader-exits`) | the pipe closing rule: EOF, two kinds of hang, and SIGPIPE (exit 141) |
+| 25 | `./25_pipeline_dup2` (also `--forget-close`) | how a shell builds `ls \| wc -l` with pipe, fork, dup2, exec |
+| 26 | `./26_shm_posix producer`, then `./26_shm_posix consumer` | POSIX shared memory between two unrelated processes; look in `/dev/shm` |
+| 27 | `./27_shared_counter_race` (also `--atomic`) | a race condition: two processes lose updates to a shared counter |
+| 28 | `./28_fifo.sh` | a named pipe: `p` in `ls -l`, a reader blocked in open() until a writer arrives |
+| 29 | `./29_socket_pair.sh` | one TCP connection seen from both ends; the client's ephemeral port |
+| 30 | `strace -f -e trace=clone,clone3,execve ./30_fork_thread_spawn` | fork, pthread_create, and posix_spawn all become clone or clone3; only the flags differ |
+| 31 | `./31_pidfd_wait` | a pidfd: wait for a child with poll() and reap it with waitid(P_PIDFD) (Linux 5.4+) |
+
+## Which demo goes with which slide
+
+| Lecture | Slide | Demo |
+|---|---|---|
+| 1 | One Program, Many Processes; Process vs Program | 01 |
+| 1 | Program vs. Process; See the Difference on Linux | 32 |
+| 1 | The Stack vs. a Stack Frame; Stack Walk: Three Nested Calls; See the Frames on Linux | 33 |
+| 1 | Process in Virtual Memory; See the Layout on the Course VM | 03 (`--hold`, then `/proc/<PID>/maps`) |
+| 1 | Watch the States Live; Linux State Mapping | 14, 07, 10 |
+| 1 | /proc: The PCB You Can Read; Example: Your Shell's PCB | 21 |
+| 2 | Voluntary vs. Involuntary Switches | 20 (and 09 for the cost of creating processes) |
+| 2 | fork(): One Call, Two Returns | 04 |
+| 2 | Copy-on-Write: The First Write | 05 |
+| 2 | Counting Processes | 22 |
+| 2 | exec() Replaces the Program; The Shell Pattern | 06 |
+| 2 | wait() Status Is Not the Exit Code | 23 (and 16 for every signal's 128 + N) |
+| 2 | Zombie and Orphan; Who Adopts an Orphan? | 07, 19 |
+| 2 | Process Termination (SIGHUP, cascading termination) | 17 |
+| 3 | Why Shared Memory Needs Synchronization | 27 |
+| 3 | POSIX Shared Memory on Linux | 26 |
+| 3 | pipe() After fork(); The Closing Rule | 24 |
+| 3 | How the Shell Builds ls \| wc -l | 25, 12 |
+| 3 | Named Pipes; Ordinary vs. Named Pipes | 28 |
+| 3 | A Socket Pair on the Course VM | 29 |
+| 2 | One Kernel Call, Different Flags | 30 |
+| 2 | pidfd: A Handle on One Process | 31 |
+
+The textbook's own example programs are in `archive_textbook_examples/` for reference.
+They are not maintained: use the numbered demos in class.
+
 ## Watching any process
 
 These work on any demo that stays alive long enough to look at (07, 08, 11, 14,

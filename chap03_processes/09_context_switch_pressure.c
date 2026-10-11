@@ -58,11 +58,14 @@
 
 #define MAX_CHILDREN 500L /* a cap, so nobody floods the machine with processes by accident */
 
-/* Turn the command-line text into a number, and refuse anything that isn't 1 to 500. */
+/*
+ * Turn the command-line text into a number, and refuse anything that isn't 1 to 500.
+ * "static" on a function just means it's only used inside this file.
+ */
 static long parse_count(const char *s)
 {
     char *end = NULL;
-    errno = 0;
+    errno = 0; /* library calls leave error codes in errno, so clear it before strtol */
     long value = strtol(s, &end, 10);
 
     /*
@@ -81,7 +84,10 @@ static long parse_count(const char *s)
     return value;
 }
 
-/* A struct timeval (seconds + microseconds) as a double number of seconds. */
+/*
+ * A struct timeval (seconds + microseconds) as a double number of seconds.
+ * The (double) casts turn the whole numbers into decimals before we divide.
+ */
 static double seconds_of(struct timeval tv)
 {
     return (double)tv.tv_sec + (double)tv.tv_usec / 1e6;
@@ -105,28 +111,47 @@ int main(int argc, char *argv[])
     struct timespec start;
     struct timespec end;
 
-    /* CLOCK_MONOTONIC is a stopwatch: it only moves forward, even if someone changes the date. */
+    /*
+     * CLOCK_MONOTONIC is a stopwatch: it only moves forward, even if someone changes
+     * the date.
+     * The (void) in front says we're ignoring the return value on purpose.
+     */
     (void)clock_gettime(CLOCK_MONOTONIC, &start);
 
-    /* Make the children. */
+    /*
+     * Make the children. fork() makes a copy of this process. From that line on, two
+     * processes are running this code. In the child, fork() returns 0. In the parent, it
+     * returns the child's PID (pid_t is just the type that holds a process ID).
+     */
     for (long i = 0; i < count; i++) {
         pid_t pid = fork();
 
         if (pid < 0) {
-            /* Out of processes or memory. Stop making more, but still reap the ones we have. */
+            /*
+             * Out of processes or memory. Stop making more, but still reap the ones we
+             * have.
+             * perror prints our label plus the reason the last call failed.
+             */
             perror("fork");
             fork_failed = 1;
             break;
         }
 
+        /*
+         * Child: exit the moment we start. _exit() ends the process right away. Plain
+         * exit() would also flush the stdio buffers the child copied from the parent.
+         */
         if (pid == 0) {
-            _exit(0); /* child: exit the moment we start */
+            _exit(0);
         }
 
         created++; /* parent: count it and go around again */
     }
 
-    /* Reap them. wait(NULL) collects any one finished child, so call it once per child. */
+    /*
+     * Reap them. wait(NULL) collects any one finished child, so call it once per child.
+     * NULL means we don't care how each child exited. wait() returns -1 on an error.
+     */
     for (long i = 0; i < created; i++) {
         if (wait(NULL) < 0) {
             perror("wait");
@@ -134,12 +159,14 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* Stop the stopwatch. Elapsed is end minus start: whole seconds plus nanoseconds. */
     (void)clock_gettime(CLOCK_MONOTONIC, &end);
     double elapsed = (double)(end.tv_sec - start.tv_sec) + (double)(end.tv_nsec - start.tv_nsec) / 1e9;
 
     /*
      * getrusage() returns the kernel's bookkeeping for a process. RUSAGE_SELF is this
      * process. RUSAGE_CHILDREN is all the children we've reaped, added together.
+     * user time is our own code running. sys time is the kernel doing work for us.
      */
     struct rusage self;
     struct rusage children;
@@ -151,7 +178,7 @@ int main(int argc, char *argv[])
         printf(" (about %.0f microseconds each)", elapsed * 1e6 / (double)created);
     }
     printf("\n");
-#ifdef __linux__ /* macOS hides these two counters in strict POSIX mode */
+#ifdef __linux__ /* these two counters are a Linux extra, not standard POSIX */
     printf("  parent context switches:  %ld voluntary, %ld involuntary\n", self.ru_nvcsw, self.ru_nivcsw);
 #endif
     printf("  parent CPU time:          user %.3f s, sys %.3f s\n",
@@ -159,5 +186,6 @@ int main(int argc, char *argv[])
     printf("  children's CPU time:      user %.3f s, sys %.3f s\n",
            seconds_of(children.ru_utime), seconds_of(children.ru_stime));
     printf("A rough feel for what a process costs, not a precise benchmark.\n");
+    /* cond ? a : b gives a when cond is true, b when it's false. So 1 if a fork failed. */
     return fork_failed ? 1 : 0;
 }

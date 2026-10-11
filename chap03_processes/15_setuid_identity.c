@@ -44,6 +44,7 @@
  *     ps -o pid,ruser,euser,cmd -C passwd
  *   RUSER (real) is you, EUSER (effective) is root. Ctrl-C the passwd afterwards.
  */
+/* _GNU_SOURCE turns on getresuid() and setresuid(), which aren't in standard POSIX. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -52,26 +53,35 @@
 #include <string.h>
 #include <unistd.h>
 
-/* Turn a UID number into a name by looking it up in /etc/passwd. */
+/*
+ * Turn a UID number into a name by looking it up in /etc/passwd. "static" means this
+ * function is only used in this file. getpwuid() returns NULL if there's no such user,
+ * and a ? b : c picks the name if we found one, or "?" if not.
+ */
 static const char *user_name(uid_t uid)
 {
     struct passwd *entry = getpwuid(uid);
     return entry != NULL ? entry->pw_name : "?";
 }
 
+/* Print all three UIDs, then try to open /etc/shadow to see what they let us do. */
 static void show_identity(const char *moment)
 {
     uid_t real_uid;
     uid_t effective_uid;
     uid_t saved_uid;
-    int fd;
+    int fd; /* a file descriptor: the small number the kernel gives you for an open file */
 
-    /* getresuid() fetches all three UIDs at once. */
+    /*
+     * getresuid() fetches all three UIDs at once. The & gives it the address of each
+     * variable so it can fill them in. It returns -1 on failure, and perror prints why.
+     */
     if (getresuid(&real_uid, &effective_uid, &saved_uid) < 0) {
         perror("getresuid");
         return;
     }
 
+    /* uid_t is the type for a user ID. The (long) casts make each one match %ld. */
     printf("%s\n", moment);
     printf("  real UID      = %ld (%s)\n", (long)real_uid, user_name(real_uid));
     printf("  effective UID = %ld (%s)\n", (long)effective_uid, user_name(effective_uid));
@@ -79,7 +89,9 @@ static void show_identity(const char *moment)
 
     /*
      * /etc/shadow holds password hashes, and only root may read it. Whether this open
-     * works depends on the EFFECTIVE UID, not the real one.
+     * works depends on the EFFECTIVE UID, not the real one. O_RDONLY means read only.
+     * open() returns -1 if it fails, and strerror(errno) turns the reason into words.
+     * We close the file right away, since we only wanted to see if the open works.
      */
     fd = open("/etc/shadow", O_RDONLY);
     if (fd >= 0) {
@@ -94,7 +106,11 @@ int main(void)
 {
     show_identity("At start:");
 
-    /* Same real and effective UID means the setuid bit isn't on, so there's nothing to drop. */
+    /*
+     * Same real and effective UID means the setuid bit isn't on, so there's nothing to
+     * drop.
+     * getuid() is the real UID and geteuid() is the effective one.
+     */
     if (geteuid() == getuid()) {
         printf("\nReal and effective UIDs match: this copy is not setuid. See the Run steps above.\n");
         return 0;

@@ -18,7 +18,7 @@
  *
  * Run
  *   ./10_process_state_lifecycle
- *   It reads /proc, which only Linux has. On a Mac it prints a note and quits.
+ *   It reads /proc, so it needs Linux.
  *
  * What to look for
  *   The State: line in each block. Then compare the SLEEPING and ZOMBIE blocks: the
@@ -36,6 +36,7 @@
  */
 #include <stdio.h>
 
+/* Everything between #ifdef __linux__ and #else only gets compiled on Linux. */
 #ifdef __linux__
 #include <errno.h>
 #include <signal.h>
@@ -56,17 +57,30 @@ static void print_status(pid_t pid, const char *phase)
     char line[256];
     FILE *status;
 
+    /*
+     * Build the path, like "/proc/1234/status". snprintf is printf into a char array,
+     * and sizeof(path) tells it how big the array is so it never writes past the end.
+     * The (long) cast makes pid match %ld. The (void) means we're ignoring the return
+     * value on purpose.
+     */
     (void)snprintf(path, sizeof(path), "/proc/%ld/status", (long)pid);
-    status = fopen(path, "r");
+    status = fopen(path, "r"); /* "r" means read. NULL means it couldn't open. */
 
     printf("\n[%s]\n", phase);
     if (status == NULL) {
-        /* After the child is reaped its /proc directory is gone. That's the point of the last step. */
+        /*
+         * After the child is reaped its /proc directory is gone. That's the point of the
+         * last step. strerror(errno) turns the error code into words.
+         */
         printf("%s is absent (%s)\n", path, strerror(errno));
         return;
     }
 
-    /* Go line by line and only keep the lines that start with one of these labels. */
+    /*
+     * Go line by line and only keep the lines that start with one of these labels.
+     * fgets reads one line and returns NULL at the end of the file. strncmp compares
+     * just the first N characters and returns 0 when they match.
+     */
     while (fgets(line, sizeof(line), status) != NULL) {
         if (strncmp(line, "Name:", 5) == 0 ||
             strncmp(line, "State:", 6) == 0 ||
@@ -89,28 +103,42 @@ int main(void)
     int ready_pipe[2]; /* [0] is the end you read from, [1] is the end you write to */
     int status = 0;
 
+    /* pipe() fills in two file descriptors. Like most system calls, it returns -1 on error. */
     if (pipe(ready_pipe) < 0) {
-        perror("pipe");
+        perror("pipe"); /* perror prints our label plus the reason it failed */
         return 1;
     }
 
-    /* fork() copies both pipe ends into the child, so the two processes can talk. */
+    /*
+     * fork() makes a copy of this process. It returns 0 in the child and the child's PID
+     * in the parent. The copy includes both pipe ends, so the two processes can talk.
+     */
     pid_t child = fork();
     if (child < 0) {
         perror("fork");
         return 1;
     }
 
+    /* Only the child runs this block. */
     if (child == 0) {
         char ready = 'R';
+        /* Fill in a struct by field name: 2 seconds and 0 nanoseconds. */
         struct timespec delay = {.tv_sec = 2, .tv_nsec = 0};
 
         (void)close(ready_pipe[0]); /* the child only writes, so close the read end */
 
-        /* Stop ourselves. The child freezes right here until someone sends SIGCONT. */
+        /*
+         * Stop ourselves. raise() sends a signal to our own process. The child freezes
+         * right here until someone sends SIGCONT.
+         */
         raise(SIGSTOP);
 
-        /* We've been continued. Send one byte to tell the parent we're awake. */
+        /*
+         * We've been continued. Send one byte to tell the parent we're awake. write()
+         * returns how many bytes it wrote, so anything but 1 means something went wrong.
+         * _exit() ends the child right away. Plain exit() would also flush the stdio
+         * buffers the child copied from the parent.
+         */
         if (write(ready_pipe[1], &ready, 1) != 1) {
             _exit(1);
         }
@@ -126,6 +154,7 @@ int main(void)
     /*
      * Normally waitpid() only returns when a child exits. WUNTRACED makes it also
      * return when the child stops. That's how we know the SIGSTOP really happened.
+     * waitpid() fills in status, and WIFSTOPPED(status) is true if the child stopped.
      */
     if (waitpid(child, &status, WUNTRACED) != child || !WIFSTOPPED(status)) {
         fprintf(stderr, "Did not observe the child stop as expected.\n");
@@ -133,7 +162,7 @@ int main(void)
     }
     print_status(child, "STOPPED: child raised SIGSTOP");
 
-    /* Wake the child up. */
+    /* Wake the child up. Despite its name, kill() just sends a signal, here SIGCONT. */
     if (kill(child, SIGCONT) < 0) {
         perror("kill SIGCONT");
         return 1;
@@ -155,14 +184,17 @@ int main(void)
     (void)nanosleep(&parent_delay, NULL);
     print_status(child, "ZOMBIE: child exited but has not been reaped");
 
-    /* Reap it. This removes the child's last entry in the process table. */
+    /* Reap it. This frees the child's last kernel record and its PID. */
     if (waitpid(child, &status, 0) != child) {
         perror("waitpid");
         return 1;
     }
-    print_status(child, "REAPED: waitpid removed the process-table entry");
+    print_status(child, "REAPED: waitpid freed its last kernel record");
 
-    /* Double check the child ended the way we expected: a normal exit with code 23. */
+    /*
+     * Double check the child ended the way we expected: a normal exit with code 23.
+     * WIFEXITED says it exited normally, and WEXITSTATUS pulls out the exit code.
+     */
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 23) {
         fprintf(stderr, "Unexpected child termination status.\n");
         return 1;
@@ -172,6 +204,7 @@ int main(void)
     return 0;
 }
 #else
+/* Not Linux: there's no /proc to read, so just say so. */
 int main(void)
 {
     puts("This lifecycle-state demo requires Linux and /proc.");

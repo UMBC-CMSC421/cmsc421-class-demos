@@ -52,7 +52,11 @@
 
 #define RUN_SECONDS 3
 
-/* Total context switches since boot, for all processes: the "ctxt" line of /proc/stat. */
+/*
+ * Total context switches since boot, for all processes: the "ctxt" line of /proc/stat.
+ * static means only this file uses this helper. The count gets big, so it's an
+ * unsigned long long (a 64-bit number that's never negative).
+ */
 static unsigned long long system_context_switches(void)
 {
     char line[256];
@@ -62,19 +66,24 @@ static unsigned long long system_context_switches(void)
     if (stat_file == NULL) {
         return 0;
     }
+    /*
+     * fgets() reads one line at a time and returns NULL at the end of the file.
+     * sscanf() returns how many values it filled in, so 1 means "this was the
+     * ctxt line, and count now holds its number".
+     */
     while (fgets(line, sizeof(line), stat_file) != NULL) {
         if (sscanf(line, "ctxt %llu", &count) == 1) {
             break;
         }
     }
-    (void)fclose(stat_file);
+    (void)fclose(stat_file); /* (void): we're ignoring the return value on purpose */
     return count;
 }
 
 /*
- * Timer interrupts on all CPUs, added up. The timer's line in /proc/interrupts is
- * "arch_timer" on ARM machines and "LOC" (local timer) on Intel/AMD. Each line has
- * one count per CPU.
+ * Timer interrupts on all CPUs, added up. On the course VM the timer's line in
+ * /proc/interrupts is "LOC" (local timer interrupts). The code also accepts
+ * "arch_timer", the name used on some other CPUs. Each line has one count per CPU.
  */
 static unsigned long long timer_interrupts(void)
 {
@@ -86,11 +95,16 @@ static unsigned long long timer_interrupts(void)
         return 0;
     }
     while (fgets(line, sizeof(line), interrupts) != NULL) {
+        /* strstr() finds text anywhere in the line. Skip lines that aren't the timer. */
         if (strstr(line, "arch_timer") == NULL && strncmp(line, "LOC:", 4) != 0 &&
             strstr(line, " LOC:") == NULL) {
             continue;
         }
-        /* Skip past the "NN:" label, then add up numbers until we reach a word. */
+        /*
+         * Skip past the "NN:" label, then add up numbers until we reach a word.
+         * strtok() hands back one space-separated piece at a time. The strspn() test
+         * checks that the piece is all digits, and strtoull() turns it into a number.
+         */
         char *token = strtok(strchr(line, ':') + 1, " \t\n");
         while (token != NULL && strspn(token, "0123456789") == strlen(token)) {
             total += strtoull(token, NULL, 10);
@@ -101,7 +115,11 @@ static unsigned long long timer_interrupts(void)
     return total;
 }
 
-/* Read one process's two counters out of /proc/<PID>/status. */
+/*
+ * Read one process's two counters out of /proc/<PID>/status.
+ * C functions return one value, so this one takes two pointers and writes the
+ * answers through them. They stay -1 if the file can't be read.
+ */
 static void switch_counts(pid_t pid, long *voluntary, long *involuntary)
 {
     char path[64];
@@ -114,6 +132,7 @@ static void switch_counts(pid_t pid, long *voluntary, long *involuntary)
     if (status == NULL) {
         return;
     }
+    /* Try both patterns on every line. Each one only fills in on its own line. */
     while (fgets(line, sizeof(line), status) != NULL) {
         (void)sscanf(line, "voluntary_ctxt_switches: %ld", voluntary);
         (void)sscanf(line, "nonvoluntary_ctxt_switches: %ld", involuntary);
@@ -121,9 +140,13 @@ static void switch_counts(pid_t pid, long *voluntary, long *involuntary)
     (void)fclose(status);
 }
 
-/* Start one child. Returns its PID to the parent, or -1 if fork failed. */
+/*
+ * Start one child. Returns its PID to the parent, or -1 if fork failed.
+ * The child never returns from here: it loops until the parent kills it.
+ */
 static pid_t start_child(int cpu_bound)
 {
+    /* fork() returns 0 in the child, the child's PID in the parent, -1 on failure. */
     pid_t pid = fork();
 
     if (pid != 0) {
@@ -131,13 +154,21 @@ static pid_t start_child(int cpu_bound)
     }
     if (cpu_bound) {
         cpu_set_t first_cpu;
+        /*
+         * volatile tells the compiler "really do every update to this variable".
+         * Without it, the optimizer could throw the useless loop body away.
+         */
         volatile unsigned long spins = 0;
 
-        /* Pin this child to CPU 0 only. Two of these can't spread out to other CPUs. */
+        /*
+         * Pin this child to CPU 0 only. Two of these can't spread out to other CPUs.
+         * first_cpu is a set of CPUs: CPU_ZERO empties it, CPU_SET adds CPU 0.
+         * The 0 passed to sched_setaffinity() means "this process".
+         */
         CPU_ZERO(&first_cpu);
         CPU_SET(0, &first_cpu);
         (void)sched_setaffinity(0, sizeof(first_cpu), &first_cpu);
-        for (;;) {
+        for (;;) { /* never waits, so it only leaves the CPU when preempted */
             spins++;
         }
     }
@@ -155,7 +186,10 @@ int main(void)
     unsigned long long switches_before = system_context_switches();
     unsigned long long timer_before = timer_interrupts();
 
-    /* Child 0 is the sleeper. Children 1 and 2 are the busy pair. */
+    /*
+     * Child 0 is the sleeper. Children 1 and 2 are the busy pair.
+     * i > 0 is 0 (false) for the first child and 1 (true) for the other two.
+     */
     for (int i = 0; i < 3; i++) {
         children[i] = start_child(i > 0);
         if (children[i] < 0) {
@@ -173,14 +207,15 @@ int main(void)
     }
 
     printf("Running three children for %d seconds...\n\n", RUN_SECONDS);
-    fflush(stdout);
-    sleep(RUN_SECONDS);
+    fflush(stdout); /* show the message now, before the parent goes to sleep */
+    sleep(RUN_SECONDS); /* the children keep running while the parent sleeps */
 
     printf("  %-7s %-28s %10s %12s\n", "PID", "child", "voluntary", "involuntary");
     for (int i = 0; i < 3; i++) {
         long voluntary;
         long involuntary;
 
+        /* &voluntary is the address of voluntary, so switch_counts() can fill it in. */
         switch_counts(children[i], &voluntary, &involuntary);
         printf("  %-7ld %-28s %10ld %12ld\n", (long)children[i], labels[i], voluntary, involuntary);
     }
@@ -191,6 +226,7 @@ int main(void)
         (void)waitpid(children[i], NULL, 0);
     }
 
+    /* Read the system counters again. After minus before is what the run added. */
     unsigned long long switches = system_context_switches() - switches_before;
     unsigned long long timers = timer_interrupts() - timer_before;
 

@@ -42,17 +42,26 @@
  *                              B = bss, r = read-only. Lowercase means the name is
  *                              static (only visible in this file).
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include <stdio.h>  /* printf(), perror(), getchar() */
+#include <stdlib.h> /* malloc(), free() */
+#include <string.h> /* strcmp() */
+#include <unistd.h> /* getpid() */
 
-/* Anything declared outside a function lives in the program's data area, not on the stack. */
+/*
+ * Anything declared outside a function lives in the program's data area, not on the
+ * stack. It exists for the whole run. "static" out here means the name is private to
+ * this file. "const" means the program can't change it.
+ */
 static int static_global = 42;                          /* has a starting value -> data */
 int initialized_global = 7;                             /* has a starting value -> data */
 int uninitialized_global;                               /* no starting value -> bss (0) */
 static const char read_only_data[] = "read-only data";  /* const -> read-only area */
 
+/*
+ * argc is how many words were on the command line, counting the program name.
+ * argv holds those words as strings. For "./03_memory_layout --hold", argc is 2
+ * and argv[1] is "--hold".
+ */
 int main(int argc, char *argv[])
 {
     int local = 99;                /* a normal local variable -> stack */
@@ -62,18 +71,23 @@ int main(int argc, char *argv[])
     /*
      * heap_value itself is a local, so the pointer is on the stack. The int it points
      * to came from malloc(), so that int is on the heap. We print where the int is.
+     * sizeof(*heap_value) is the size in bytes of one int, so we ask for exactly that.
      */
     int *heap_value = malloc(sizeof(*heap_value));
 
+    /* malloc() returns NULL if it can't get the memory. perror() prints why. */
     if (heap_value == NULL)
     {
         perror("malloc");
         return 1;
     }
 
-    *heap_value = 555;
+    *heap_value = 555; /* the * means "the int this pointer points at" */
 
-    /* %p prints an address. It expects a void pointer, which is why every one is cast. */
+    /*
+     * & means "the address of". %p prints an address, and it expects a void pointer,
+     * which is why every one is cast to (void *).
+     */
     printf("Address of read_only_data      : %p\n", (const void *)read_only_data);
     printf("Address of initialized_global  : %p\n", (void *)&initialized_global);
     printf("Address of uninitialized_global: %p\n", (void *)&uninitialized_global);
@@ -82,20 +96,26 @@ int main(int argc, char *argv[])
     printf("Address of local (stack)       : %p\n", (void *)&local);
     printf("Address of *heap_value         : %p\n", (void *)heap_value);
 
+    /* strcmp() returns 0 when the two strings are the same. */
     if (argc == 2 && strcmp(argv[1], "--hold") == 0)
     {
-        /* getchar() waits for Enter. That keeps the process alive long enough to inspect it. */
+        /*
+         * getchar() waits for Enter. That keeps the process alive long enough to
+         * inspect it. The (void) in front says we're ignoring what it returns on purpose.
+         */
         printf("\nPID=%ld. Press Enter after inspecting this process with pmap or /proc/%ld/maps.\n",
                (long)getpid(), (long)getpid());
         (void)getchar();
     }
     else if (argc != 1)
     {
+        /* Anything else is a typo. Error messages go to stderr, not regular output. */
         fprintf(stderr, "Usage: %s [--hold]\n", argv[0]);
         free(heap_value);
         return 2;
     }
 
+    /* Hand the heap memory back. The kernel frees everything at exit anyway. */
     free(heap_value);
     return 0;
 }

@@ -45,6 +45,10 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
+/*
+ * Read one score through a pointer. *slot means "the int stored at the address in
+ * slot". const means we only read it. static means only this file can call it.
+ */
 static int load_score(const int *slot)
 {
     return *slot; /* slot is NULL on the third call: invalid address -> SIGSEGV */
@@ -55,7 +59,11 @@ static int total_scores(const int *scores, int count)
     int total = 0;
 
     for (int i = 0; i < count; i++) {
-        /* Here's the bug: when i is 2 we pass NULL instead of the real address. */
+        /*
+         * Here's the bug: when i is 2 we pass NULL instead of the real address.
+         * (test) ? a : b picks a when the test is true and b otherwise.
+         * &scores[i] is the address of element i.
+         */
         const int *slot = (i == 2) ? NULL : &scores[i];
         total += load_score(slot);
     }
@@ -70,6 +78,8 @@ int main(void)
     /*
      * RLIMIT_CORE is the biggest core file this process is allowed to write. 0 means
      * no core file at all. It's the same setting "ulimit -c" changes in your shell.
+     * getrlimit() fills in core_limit and returns 0 when it works. rlim_cur is the
+     * limit in force right now.
      */
     if (getrlimit(RLIMIT_CORE, &core_limit) == 0) {
         if (core_limit.rlim_cur == 0) {
@@ -77,13 +87,19 @@ int main(void)
         } else if (core_limit.rlim_cur == RLIM_INFINITY) {
             printf("Core dump size limit: unlimited\n");
         } else {
+            /* The (unsigned long long) cast makes the value match %llu in printf. */
             printf("Core dump size limit: %llu bytes\n", (unsigned long long)core_limit.rlim_cur);
         }
     }
 
+    /* Same idea for (long): pid_t is printed with %ld, so we convert it to long. */
     printf("PID %ld adding up scores; the third one is read through a NULL pointer...\n", (long)getpid());
     fflush(stdout); /* print this now, because the crash would throw away anything still buffered */
 
+    /*
+     * The crash happens in load_score(), called from total_scores(). The kernel
+     * sends SIGSEGV, nobody handles it, and the process dies right there.
+     */
     printf("total = %d\n", total_scores(scores, 4)); /* we never get to print this */
     return 0;
 }

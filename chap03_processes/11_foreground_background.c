@@ -52,35 +52,54 @@
 #include <time.h>
 #include <unistd.h>
 
-static volatile sig_atomic_t continued = 0; /* set by the handler, checked by the loop */
+/*
+ * A flag the signal handler sets and the main loop checks. sig_atomic_t is a type that
+ * can be written in one step, so a signal can't catch it half-written. volatile tells
+ * the compiler to really read it from memory every time, because a handler can change
+ * it behind the loop's back. static means it's only used in this file.
+ */
+static volatile sig_atomic_t continued = 0;
 
-/* Runs when SIGCONT arrives, which happens every time bg or fg wakes us up. */
+/*
+ * Runs when SIGCONT arrives, which happens every time bg or fg wakes us up. The kernel
+ * calls it in the middle of whatever main was doing, so it only sets the flag.
+ */
 static void handle_sigcont(int signo)
 {
-    (void)signo;
+    (void)signo; /* we don't use signo. (void) tells the compiler that's on purpose. */
     continued = 1;
 }
 
 /*
  * tcgetpgrp() asks the terminal which process group is in the foreground right now.
- * If that's our group, we're the foreground job.
+ * If that's our group, we're the foreground job. STDIN_FILENO is file descriptor 0,
+ * standard input, which is the terminal when you run this from a shell.
  */
 static const char *job_position(void)
 {
     pid_t terminal_group = tcgetpgrp(STDIN_FILENO);
 
+    /* -1 means stdin isn't a terminal at all (say, input piped in from a file). */
+
     if (terminal_group < 0) {
         return "not attached to a terminal";
     }
+    /* getpgrp() is our own group. a ? b : c gives b when a is true, c when it's false. */
     return terminal_group == getpgrp() ? "FOREGROUND" : "background";
 }
 
 int main(int argc, char *argv[])
 {
     struct sigaction sa;
+    /* 1 if you ran it with --read, 0 if not. strcmp returns 0 when two strings match. */
     int read_terminal = (argc == 2 && strcmp(argv[1], "--read") == 0);
 
-    /* Install the SIGCONT handler. SA_RESTART means an interrupted read just keeps going. */
+    /*
+     * Install the SIGCONT handler. memset zeroes the whole struct first so no field is
+     * left holding garbage. sa_handler is the function to run. sa_mask lists signals to
+     * hold off while the handler runs (none here). SA_RESTART means an interrupted read
+     * just keeps going.
+     */
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_sigcont;
     sigemptyset(&sa.sa_mask);
@@ -90,6 +109,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /*
+     * Our process ID, process group ID, and session ID. The (long) casts make each
+     * value match %ld. fflush pushes the text out now instead of letting it sit in
+     * printf's buffer.
+     */
     printf("PID=%ld  PGID=%ld  SID=%ld\n", (long)getpid(), (long)getpgrp(), (long)getsid(0));
     fflush(stdout);
 
@@ -105,9 +129,12 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    /* 120 ticks, one per second, is the 2 minutes from the header. */
     for (int tick = 1; tick <= 120; tick++) {
+        /* Fill in the struct by field name: 1 second and 0 nanoseconds. */
         struct timespec remaining = {.tv_sec = 1, .tv_nsec = 0};
 
+        /* The handler set the flag. Report it here, then clear it for next time. */
         if (continued) {
             printf("  SIGCONT arrived: this job was stopped and has resumed\n");
             continued = 0;

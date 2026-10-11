@@ -37,6 +37,7 @@
  *   If a run ever gets cut off and leaves processes behind, pkill 14_state_codes
  *   cleans them up.
  */
+/* _GNU_SOURCE asks glibc to turn on its Linux extras in the headers below. */
 #define _GNU_SOURCE
 #include <signal.h>
 #include <stdio.h>
@@ -47,7 +48,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define MAX_KIDS 6
+#define MAX_KIDS 6 /* one child for each state letter in the table above */
 
 /* One entry per child: its PID, and a note on how it got into its state. */
 struct kid {
@@ -55,7 +56,11 @@ struct kid {
     const char *how;
 };
 
-/* Field 3 of /proc/<PID>/stat is the state letter. It follows the ")" that ends the name. */
+/*
+ * Field 3 of /proc/<PID>/stat is the state letter. It follows the ")" that ends the name.
+ * The line looks like "1234 (14_state_codes) S 1200 ...". If anything goes wrong we
+ * return '?' instead. "static" on a function means it's only used in this file.
+ */
 static char kernel_state(pid_t pid)
 {
     char path[64];
@@ -63,8 +68,13 @@ static char kernel_state(pid_t pid)
     FILE *stat_file;
     char *name_end;
 
+    /*
+     * snprintf is printf into a char array. sizeof(path) is the array's size, so it can't
+     * write past the end. The (long) cast makes the PID match %ld. (void) means we're
+     * ignoring the return value on purpose.
+     */
     (void)snprintf(path, sizeof(path), "/proc/%ld/stat", (long)pid);
-    stat_file = fopen(path, "r");
+    stat_file = fopen(path, "r"); /* NULL means the file couldn't be opened */
     if (stat_file == NULL) {
         return '?';
     }
@@ -74,12 +84,19 @@ static char kernel_state(pid_t pid)
     }
     (void)fclose(stat_file);
 
-    /* Search from the end, in case the program name itself has a ")" in it. */
+    /*
+     * strrchr finds the LAST ")" in the line and returns a pointer to it. Searching from
+     * the end matters in case the program name itself has a ")" in it. From there,
+     * name_end[1] is the space after it and name_end[2] is the state letter.
+     */
     name_end = strrchr(line, ')');
     return (name_end != NULL && name_end[1] == ' ') ? name_end[2] : '?';
 }
 
-/* Kill every child and wait for each one, so nothing gets left behind. */
+/*
+ * Kill every child and wait for each one, so nothing gets left behind. SIGKILL can't be
+ * caught or ignored. waitpid() then reaps each child so none stays a zombie.
+ */
 static void kill_and_reap(const struct kid *kids, int count)
 {
     for (int i = 0; i < count; i++) {
@@ -107,7 +124,7 @@ static void quit_if_fork_failed(pid_t pid, const struct kid *kids, int count)
     if (pid >= 0) {
         return;
     }
-    perror("fork");
+    perror("fork"); /* prints "fork: " plus the reason it failed */
     kill_and_reap(kids, count);
     exit(1);
 }
@@ -115,7 +132,7 @@ static void quit_if_fork_failed(pid_t pid, const struct kid *kids, int count)
 /* Does nothing on purpose. It's only here so a signal interrupts getchar() (see main). */
 static void stop_waiting(int signo)
 {
-    (void)signo;
+    (void)signo; /* we don't use signo, and (void) says that's on purpose */
 }
 
 int main(void)
@@ -125,13 +142,22 @@ int main(void)
     pid_t pid;
     struct sigaction sa;
 
-    /* R: a busy loop always wants the CPU. */
+    /*
+     * R: a busy loop always wants the CPU.
+     * (pid = fork()) == 0 does two things: it saves fork's return value in pid, then
+     * checks it. 0 means we're the child, so only the child goes into the braces.
+     */
     if ((pid = fork()) == 0) {
+        /* volatile makes the compiler really update spins in memory every time around. */
         volatile unsigned long spins = 0;
         for (;;) {
             spins++;
         }
     }
+    /*
+     * The parent records the child. (struct kid){pid, "..."} builds a struct on the spot,
+     * and kids[count++] stores it in slot count and then adds 1 to count.
+     */
     quit_if_fork_failed(pid, kids, count);
     kids[count++] = (struct kid){pid, "busy loop"};
 
@@ -195,6 +221,8 @@ int main(void)
 
     sleep(1); /* give every child a moment to get into its state */
 
+    /* %-7s and %-6c pad each value to a fixed width, so the columns line up. */
+
     printf("Parent PID %ld created %d children:\n\n", (long)getpid(), count);
     printf("  %-7s %-6s %s\n", "PID", "state", "how the child got there");
     for (int i = 0; i < count; i++) {
@@ -215,6 +243,10 @@ int main(void)
      * does nothing. Since sa_flags doesn't include SA_RESTART, the signal just makes
      * getchar() give up, and we carry on to the cleanup as if you'd pressed Enter.
      */
+    /*
+     * memset zeroes the struct first. sa_handler is the function to run, sa_mask lists
+     * signals to hold off while it runs (none), and sa_flags = 0 means no SA_RESTART.
+     */
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = stop_waiting;
     sigemptyset(&sa.sa_mask);
@@ -223,6 +255,7 @@ int main(void)
     (void)sigaction(SIGTERM, &sa, NULL);
     (void)sigaction(SIGHUP, &sa, NULL);
 
+    /* fflush pushes the prompt out now, before getchar() blocks waiting for you. */
     printf("\nPress Enter (or Ctrl-C) to kill and reap every child.\n");
     fflush(stdout);
     (void)getchar();

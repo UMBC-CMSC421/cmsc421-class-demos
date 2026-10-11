@@ -46,8 +46,13 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Sleep for the given number of milliseconds. static: a helper only this file uses. */
 static void nap_ms(long milliseconds)
 {
+    /*
+     * Split the time into whole seconds plus leftover nanoseconds (1 ms = 1,000,000 ns).
+     * (void) on the call below means we're ignoring its return value on purpose.
+     */
     struct timespec delay = {.tv_sec = milliseconds / 1000, .tv_nsec = (milliseconds % 1000) * 1000000L};
     (void)nanosleep(&delay, NULL);
 }
@@ -55,13 +60,17 @@ static void nap_ms(long milliseconds)
 /* Print our parent's PID and its name. /proc/<PID>/comm holds a process's name. */
 static void report_parent(void)
 {
-    pid_t parent = getppid();
+    pid_t parent = getppid(); /* asks the kernel: who is my parent right now? */
     char path[64];
     char name[64] = "?";
     FILE *comm;
 
+    /*
+     * snprintf() is printf into a buffer. sizeof(path) is the buffer's size, so it
+     * can't write past the end. (long) converts pid_t to match %ld.
+     */
     (void)snprintf(path, sizeof(path), "/proc/%ld/comm", (long)parent);
-    comm = fopen(path, "r");
+    comm = fopen(path, "r"); /* NULL if the file couldn't be opened */
     if (comm != NULL) {
         if (fgets(name, sizeof(name), comm) != NULL) {
             name[strcspn(name, "\n")] = '\0'; /* chop off the newline */
@@ -69,12 +78,13 @@ static void report_parent(void)
         (void)fclose(comm);
     }
     printf("    grandchild %ld: my parent is PID %ld (%s)\n", (long)getpid(), (long)parent, name);
-    fflush(stdout);
+    fflush(stdout); /* write it out now, so lines from each process stay in order */
 }
 
 /* This process -> middle -> grandchild. The middle process exits almost at once. */
 static void make_orphan(void)
 {
+    /* fork() returns 0 in the new child and the child's PID in the parent. */
     pid_t middle = fork();
 
     if (middle == 0) {
@@ -87,6 +97,10 @@ static void make_orphan(void)
                 report_parent();
                 nap_ms(300);
             }
+            /*
+             * _exit() ends the process right away. Children use it instead of exit()
+             * so they don't flush a copy of the parent's stdio buffers a second time.
+             */
             _exit(7);
         }
 
@@ -95,7 +109,7 @@ static void make_orphan(void)
         printf("    middle %ld exits, leaving grandchild %ld without a parent\n",
                (long)getpid(), (long)grandchild);
         fflush(stdout);
-        _exit(0);
+        _exit(0); /* the moment this runs, the grandchild is an orphan */
     }
 
     /* Reap middle. The grandchild isn't our child, so this doesn't wait for it. */
@@ -117,7 +131,10 @@ int main(void)
     printf("\n2) After prctl(PR_SET_CHILD_SUBREAPER, 1), this program adopts its orphaned descendants:\n");
     fflush(stdout);
 
-    /* Sign up as a subreaper: orphans anywhere below us get handed to us, not to PID 1. */
+    /*
+     * Sign up as a subreaper: orphans anywhere below us get handed to us, not to PID 1.
+     * prctl() returns -1 on failure. perror() then prints "prctl: " plus the reason.
+     */
     if (prctl(PR_SET_CHILD_SUBREAPER, 1) < 0) {
         perror("prctl");
         return 1;
@@ -126,6 +143,7 @@ int main(void)
 
     /* The orphan is our child now, so we can wait for it. -1 means "any child". */
     reaped = waitpid(-1, &status, 0);
+    /* WIFEXITED: it exited normally. WEXITSTATUS then gives its exit code (7). */
     if (reaped > 0 && WIFEXITED(status)) {
         printf("    PID %ld (this program) reaped adopted orphan %ld, exit status %d\n",
                (long)getpid(), (long)reaped, WEXITSTATUS(status));

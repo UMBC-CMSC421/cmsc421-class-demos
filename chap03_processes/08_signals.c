@@ -34,14 +34,13 @@
  *   strace -e trace=none -p <PID>    attaches to the running program and prints every
  *                                    signal as it arrives. When you use kill, si_pid
  *                                    is the PID of the shell you ran kill from.
- *                                    Ctrl-C the strace to detach. (On Ubuntu you may
- *                                    need sudo in front.)
+ *                                    Ctrl-C the strace to detach.
  *   kill -l                          every signal name and number
  */
-#include <signal.h>
-#include <stdio.h>
+#include <signal.h> /* sigaction(), sigprocmask(), sigsuspend(), the sigset calls */
+#include <stdio.h>  /* printf(), perror() */
 #include <stdlib.h>
-#include <unistd.h>
+#include <unistd.h> /* getpid() */
 
 /*
  * A handler can run at any moment, even in the middle of a line in main. So the
@@ -52,9 +51,14 @@
 static volatile sig_atomic_t sigint_count = 0;
 static volatile sig_atomic_t sigusr1_count = 0;
 
+/*
+ * The handlers. The kernel calls them for us when a signal arrives, and passes the
+ * signal number as signo. "static" means only this file can see these names.
+ */
 static void handle_sigint(int signo)
 {
-    (void)signo; /* we know which signal it is, so the argument isn't needed */
+    /* (void) marks signo as unused on purpose. We already know which signal it is. */
+    (void)signo;
     sigint_count++;
 }
 
@@ -66,8 +70,9 @@ static void handle_sigusr1(int signo)
 
 int main(void)
 {
-    struct sigaction sa_int;
-    struct sigaction sa_usr1;
+    struct sigaction sa_int;   /* settings for how to handle SIGINT */
+    struct sigaction sa_usr1;  /* settings for how to handle SIGUSR1 */
+    /* A sigset_t is a set of signals. These three get filled in below. */
     sigset_t blocked;
     sigset_t old_mask;
     sigset_t wait_mask;
@@ -82,16 +87,25 @@ int main(void)
      * and only let them through inside sigsuspend(). sigsuspend() unblocks them and
      * goes to sleep in one step that can't be split, so nothing slips through the gap.
      */
+    /* Build the set {SIGINT, SIGUSR1}: start empty, then add each one. */
     sigemptyset(&blocked);
     sigaddset(&blocked, SIGINT);
     sigaddset(&blocked, SIGUSR1);
 
+    /*
+     * SIG_BLOCK adds that set to what's already blocked. The old mask gets saved in
+     * old_mask so we can put it back at the end. Like most system calls, it returns
+     * -1 on failure, and perror() prints our label plus the reason.
+     */
     if (sigprocmask(SIG_BLOCK, &blocked, &old_mask) < 0) {
         perror("sigprocmask block");
         return 1;
     }
 
-    /* The mask to use while sleeping: whatever was blocked before, minus our two signals. */
+    /*
+     * The mask to use while sleeping: whatever was blocked before, minus our two
+     * signals.
+     */
     wait_mask = old_mask;
     sigdelset(&wait_mask, SIGINT);
     sigdelset(&wait_mask, SIGUSR1);
@@ -110,7 +124,10 @@ int main(void)
     sigemptyset(&sa_usr1.sa_mask);
     sa_usr1.sa_flags = 0;
 
-    /* Install the handlers. From now on these signals run our functions instead of the default. */
+    /*
+     * Install the handlers. From now on these signals run our functions instead of
+     * the default action.
+     */
     if (sigaction(SIGINT, &sa_int, NULL) < 0) {
         perror("sigaction SIGINT");
         return 1;
@@ -126,9 +143,13 @@ int main(void)
     fflush(stdout);
 
     while (sigint_count < 3) {
-        /* Sleep with our two signals unblocked. Returns after a handler has run. */
+        /*
+         * Sleep with our two signals unblocked. Returns after a handler has run, and
+         * then the two signals are blocked again.
+         */
         (void)sigsuspend(&wait_mask);
 
+        /* sig_atomic_t's exact type varies, so cast to int to match %d. */
         printf("Observed signals so far: SIGINT=%d, SIGUSR1=%d\n",
                (int)sigint_count,
                (int)sigusr1_count);

@@ -43,39 +43,54 @@
  *   - Change the memset in the child to write only half the buffer. Only about 32 MB
  *     moves from shared to private, because only the pages you touch get copied.
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+#include <stdio.h>     /* printf(), perror(), fopen(), fgets(), sscanf() */
+#include <stdlib.h>    /* malloc(), free() */
+#include <string.h>    /* memset() */
+#include <sys/types.h> /* pid_t */
+#include <sys/wait.h>  /* waitpid() */
+#include <unistd.h>    /* fork(), _exit() */
 
+/* UL marks each number as an unsigned long, a type meant for big byte counts. */
 #define BUFFER_BYTES (64UL * 1024UL * 1024UL) /* 64 MB */
 
 static int global_counter = 100; /* a global, in the data area */
 
+/*
+ * #ifdef __linux__ ... #endif: the code between them only gets compiled on Linux,
+ * because /proc/self/smaps_rollup only exists there.
+ */
 #ifdef __linux__
 /*
  * Print this process's Shared_Dirty and Private_Dirty totals, in MB. The kernel adds
  * them up over every memory region when you read /proc/self/smaps_rollup.
+ * "static" on a function means only this file can call it. moment is the label
+ * printed at the start of the line.
  */
 static void show_sharing(const char *moment)
 {
     char line[256];
-    long shared_kb = -1;
+    long shared_kb = -1;  /* -1 means "not found yet" */
     long private_kb = -1;
     FILE *rollup = fopen("/proc/self/smaps_rollup", "r");
 
+    /* fopen() returns NULL if it can't open the file. perror() prints why. */
     if (rollup == NULL) {
         perror("fopen /proc/self/smaps_rollup");
         return;
     }
+    /*
+     * fgets() reads one line at a time (at most sizeof(line) bytes) and returns NULL
+     * at the end of the file. sscanf() tries to match each line against a pattern,
+     * and only fills in the number when the line really is the Shared_Dirty or
+     * Private_Dirty line. The (void) means we're ignoring its return value on purpose.
+     */
     while (fgets(line, sizeof(line), rollup) != NULL) {
         (void)sscanf(line, "Shared_Dirty: %ld kB", &shared_kb);
         (void)sscanf(line, "Private_Dirty: %ld kB", &private_kb);
     }
     (void)fclose(rollup);
 
+    /* The file reports kB, so divide by 1024 for MB. %-30s pads the label to line up. */
     printf("[child ] %-30s shared %3ld MB   private %3ld MB\n", moment, shared_kb / 1024,
            private_kb / 1024);
 }
@@ -85,7 +100,10 @@ int main(void)
 {
     int local_counter = 200; /* a local, on the stack */
 
-    /* Fill a big buffer BEFORE fork, so there's something large for the two processes to share. */
+    /*
+     * Fill a big buffer BEFORE fork, so there's something large for the two processes
+     * to share. malloc() gets the memory, and memset() writes 'P' into every byte.
+     */
     char *buffer = malloc(BUFFER_BYTES);
     if (buffer == NULL) {
         perror("malloc");
@@ -93,6 +111,10 @@ int main(void)
     }
     memset(buffer, 'P', BUFFER_BYTES);
 
+    /*
+     * fork() makes the child. pid_t is the integer type for process IDs. The child
+     * gets 0 back, the parent gets the child's PID, and -1 means it failed.
+     */
     pid_t pid = fork();
 
     if (pid < 0) {
@@ -105,23 +127,33 @@ int main(void)
         /* Part 1: nothing has been copied yet. The buffer is still the parent's pages. */
         show_sharing("right after fork:");
 
-        /* Write to every page of the buffer. Each first write makes the kernel copy that page. */
+        /*
+         * Write to every page of the buffer. Each first write to a page makes the kernel
+         * copy that page.
+         */
         memset(buffer, 'C', BUFFER_BYTES);
         show_sharing("after writing all 64 MB:");
         printf("\n");
 #endif
 
-        /* Part 2: change our copies of the counters. This is the "write" in copy-on-write. */
+        /*
+         * Part 2: change our copies of the counters. This is the "write" in
+         * copy-on-write.
+         */
         global_counter += 1;
         local_counter += 1;
 
+        /* %p prints an address. &x means "the address of x", cast to (void *) for %p. */
         printf("[child ] global_counter=%d at %p\n", global_counter, (void *)&global_counter);
         printf("[child ] local_counter =%d at %p\n", local_counter, (void *)&local_counter);
-        fflush(stdout);
+        fflush(stdout); /* push out anything printf is still holding */
         _exit(0); /* _exit instead of exit: see the comment in demo 04 */
     }
 
-    /* Parent: wait until the child has changed its values and exited, then print ours. */
+    /*
+     * Parent: wait until the child has changed its values and exited, then print ours.
+     * NULL means we don't need to know how the child ended. 0 means no special options.
+     */
     if (waitpid(pid, NULL, 0) < 0) {
         perror("waitpid");
         return 1;

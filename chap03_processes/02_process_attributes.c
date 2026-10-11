@@ -35,19 +35,29 @@
  *   sudo ./02_process_attributes      runs as root, so all the UIDs and GIDs are 0
  *   ps -o pid,ppid,pgid,sid,uid,cmd   the same columns for your shell and for ps
  */
-#include <stdio.h>
-#include <unistd.h>
+#include <stdio.h>  /* printf(), perror() */
+#include <unistd.h> /* getpid(), getsid(), getuid(), and the other ID calls */
 
 int main(void)
 {
-    /* getsid(0) means "the session ID of me". Unlike the others it can fail, so check it. */
+    /*
+     * getsid(0) means "the session ID of me". pid_t is the integer type the system
+     * uses for process IDs. Unlike the other calls below, getsid() can fail. When it
+     * does, it returns -1, so we check for that.
+     */
     pid_t session_id = getsid(0);
 
     if (session_id < 0) {
+        /* perror() prints our label plus the reason the last call failed. */
         perror("getsid");
-        return 1;
+        return 1; /* a nonzero return from main tells the shell something went wrong */
     }
 
+    /*
+     * Each ID gets a (long) cast so it matches %ld, printf's code for a long.
+     * The ID types can be different sizes on different systems, and this keeps
+     * the format right everywhere.
+     */
     printf("Process relationships:\n");
     printf("  PID  = %ld\n", (long)getpid());    /* me */
     printf("  PPID = %ld\n", (long)getppid());   /* my parent */

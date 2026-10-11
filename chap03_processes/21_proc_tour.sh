@@ -29,7 +29,9 @@
 #   ls -l /proc/$$/fd            0, 1, and 2 (stdin, stdout, stderr) point at your terminal
 #   man 5 proc                   what every file in there means
 
+# mktemp makes an empty temp file and prints its name. The sleep will hold it open.
 scratch=$(mktemp)
+# When the script ends (trap ... EXIT), stop the sleep, reap it, and delete the temp file.
 cleanup() {
     kill "$subject" 2>/dev/null
     wait 2>/dev/null
@@ -37,7 +39,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Print a command with a $ in front, then run it.
+# Print a command with a $ in front, then run it. eval runs a string as a command,
+# so pipes and redirects inside it work like you typed them.
 run() {
     echo
     echo "\$ $1"
@@ -48,12 +51,17 @@ run() {
 # env adds a variable, 3< and 4> open two extra files, and exec makes sleep take over
 # the same process. So $! really is the sleep's PID.
 (cd /tmp && exec env CMSC421_DEMO=hello sleep 300 3</etc/hostname 4>"$scratch") &
+# $! is the PID of the job we just started in the background. The short sleep gives
+# it a moment to finish starting up. $p is its folder in /proc, used by every command
+# below.
 subject=$!
 sleep 0.3
 p=/proc/$subject
 
 echo "Subject process: PID $subject, started as: cd /tmp && env CMSC421_DEMO=hello sleep 300 3</etc/hostname 4>$scratch"
 
+# The tour. Each line reads one file from /proc/<PID>. The note at the end of the
+# line says which part of the PCB it shows.
 run "ls -l $p | head -6"                                                   # size 0 everywhere
 run "tr '\\0' ' ' < $p/cmdline; echo"                                      # the command line (NUL-separated, so swap in spaces)
 run "tr '\\0' '\\n' < $p/environ | grep CMSC421"                           # the environment variables

@@ -47,12 +47,21 @@
 #include <time.h>
 #include <unistd.h>
 
-/* The table from man 7 signal: each signal and its default action. */
+/*
+ * The table from man 7 signal: each signal and its default action.
+ * A struct bundles a few values into one type. Each row here is a signal number
+ * plus a short word for what it does by default.
+ */
 struct signal_row {
     int number;
     const char *default_action;
 };
 
+/*
+ * The whole table as an array. Each {SIGHUP, "terminate"} fills in one row, in the
+ * same order as the struct's fields. static means only this file can see it, and
+ * const means nobody can change it.
+ */
 static const struct signal_row rows[] = {
     {SIGHUP, "terminate"},  {SIGINT, "terminate"},  {SIGQUIT, "core"},     {SIGILL, "core"},
     {SIGTRAP, "core"},      {SIGABRT, "core"},      {SIGBUS, "core"},      {SIGFPE, "core"},
@@ -62,15 +71,26 @@ static const struct signal_row rows[] = {
     {SIGURG, "ignore"},     {SIGWINCH, "ignore"},
 };
 
+/* Sleep for 50 ms. A static function is a helper only this file can call. */
 static void short_sleep(void)
 {
+    /* .tv_sec and .tv_nsec name the fields we're setting: 0 s plus 50 million ns. */
     struct timespec fifty_ms = {.tv_sec = 0, .tv_nsec = 50L * 1000L * 1000L};
+    /* (void) in front of a call means "we're ignoring the return value on purpose". */
     (void)nanosleep(&fifty_ms, NULL);
 }
 
-/* Start a child that just waits, send it one signal, and describe what happened. */
+/*
+ * Start a child that just waits, send it one signal, and describe what happened.
+ * The description gets written into result, a buffer of size bytes the caller owns.
+ */
 static void observe(int signo, char *result, size_t size)
 {
+    /*
+     * fork() makes a copy of this process. From here on two processes run this code.
+     * pid_t is the type for process IDs. fork() returns 0 in the child, the child's
+     * PID in the parent, and -1 if it failed.
+     */
     pid_t child = fork();
     pid_t changed = 0;
     int status = 0;
@@ -79,6 +99,7 @@ static void observe(int signo, char *result, size_t size)
         /*
          * Never carry on with child == -1. kill(-1, signo) means "send this to every
          * process I'm allowed to signal", and that would take down your whole login.
+         * snprintf() is printf into a buffer, and it never writes more than size bytes.
          */
         (void)snprintf(result, size, "fork failed, skipped");
         return;
@@ -91,6 +112,7 @@ static void observe(int signo, char *result, size_t size)
          * get when you start things over plain ssh. In its own group, the child's
          * parent (this program) is in the same session, so the stop signals act the
          * same no matter how you launched the demo.
+         * setpgid(0, 0) means "put me in a new group whose ID is my own PID".
          */
         (void)setpgid(0, 0);
         for (;;) {
@@ -98,12 +120,16 @@ static void observe(int signo, char *result, size_t size)
         }
     }
 
+    /* Only the parent gets here. The child never leaves its pause() loop. */
     short_sleep(); /* give the child a moment to get to pause() */
+    /* Despite the name, kill() just sends a signal. What it does is up to the signal. */
     (void)kill(child, signo);
 
     /*
      * Check up to 10 times, 50 ms apart. WNOHANG means "don't block if nothing has
      * happened yet". WUNTRACED means "also tell me if the child stopped".
+     * waitpid() returns 0 while nothing has changed, and the child's PID once
+     * something has. The | joins the two options into one int.
      */
     for (int attempt = 0; attempt < 10 && changed == 0; attempt++) {
         changed = waitpid(child, &status, WNOHANG | WUNTRACED);
@@ -112,6 +138,10 @@ static void observe(int signo, char *result, size_t size)
         }
     }
 
+    /*
+     * status packs up what happened. The W... macros pull it apart: killed by a
+     * signal (and which one), stopped, or exited normally. Demo 23 shows the raw bits.
+     */
     if (changed == 0) {
         (void)snprintf(result, size, "still running (nothing happened)");
     } else if (WIFSIGNALED(status)) {
@@ -123,7 +153,10 @@ static void observe(int signo, char *result, size_t size)
         (void)snprintf(result, size, "exited with status %d", WEXITSTATUS(status));
     }
 
-    /* If the child is still around (ignored the signal, or got stopped), finish it off. */
+    /*
+     * If the child is still around (ignored the signal, or got stopped), finish it off.
+     * The last waitpid() reaps it, so it doesn't hang around as a zombie.
+     */
     if (changed == 0 || WIFSTOPPED(status)) {
         (void)kill(child, SIGKILL);
         (void)waitpid(child, NULL, 0);
@@ -136,12 +169,13 @@ int main(void)
 
     printf("Each row: a fresh child that only calls pause(), then kill(child, signal).\n\n");
     printf("  %-8s %2s  %-10s %s\n", "signal", "#", "default", "what waitpid() observed");
+    /* sizeof(rows) / sizeof(rows[0]) is the row count: total bytes / bytes per row. */
     for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
         observe(rows[i].number, result, sizeof(result));
         /* sigabbrev_np() turns a number into its short name, like 15 -> "TERM". */
         printf("  SIG%-5s %2d  %-10s %s\n",
                sigabbrev_np(rows[i].number), rows[i].number, rows[i].default_action, result);
-        fflush(stdout);
+        fflush(stdout); /* push the row out now, so you see each one as it finishes */
     }
 
     printf("\n\"core\" signals only leave a core file when ulimit -c allows it (see demo 18).\n");
