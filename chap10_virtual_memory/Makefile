@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wformat=2 -Wundef
 
-PROGRAMS = 01_memory_hog
+PROGRAMS = 01_memory_hog 03_lazy_alloc 04_cow_fork
 
 .PHONY: all clean
 
