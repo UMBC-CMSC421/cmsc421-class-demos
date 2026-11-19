@@ -83,35 +83,6 @@ The book I used for writing most of this code was written for CentOS 6, so some 
 | 30 | `strace -f -e trace=clone,clone3,execve ./30_fork_thread_spawn` | fork, pthread_create, and posix_spawn all become clone or clone3; only the flags differ |
 | 31 | `./31_pidfd_wait` | a pidfd: wait for a child with poll() and reap it with waitid(P_PIDFD) (Linux 5.4+) |
 
-## Which demo goes with which slide
-
-| Lecture | Slide | Demo |
-|---|---|---|
-| 1 | One Program, Many Processes; Process vs Program | 01 |
-| 1 | Program vs. Process; See the Difference on Linux | 32 |
-| 1 | The Stack vs. a Stack Frame; Stack Walk: Three Nested Calls; See the Frames on Linux | 33 |
-| 1 | Process in Virtual Memory; See the Layout on the Course VM | 03 (`--hold`, then `/proc/<PID>/maps`) |
-| 1 | Watch the States Live; Linux State Mapping | 14, 07, 10 |
-| 1 | /proc: The PCB You Can Read; Example: Your Shell's PCB | 21 |
-| 2 | Voluntary vs. Involuntary Switches | 20 (and 09 for the cost of creating processes) |
-| 2 | fork(): One Call, Two Returns | 04 |
-| 2 | Copy-on-Write: The First Write | 05 |
-| 2 | Counting Processes | 22 |
-| 2 | exec() Replaces the Program; The Shell Pattern | 06 |
-| 2 | wait() Status Is Not the Exit Code | 23 (and 16 for every signal's 128 + N) |
-| 2 | Zombie and Orphan; Who Adopts an Orphan? | 07, 19 |
-| 2 | Process Termination (SIGHUP, cascading termination) | 17 |
-| 3 | Why Shared Memory Needs Synchronization | 27 |
-| 3 | POSIX Shared Memory on Linux | 26 |
-| 3 | pipe() After fork(); The Closing Rule | 24 |
-| 3 | How the Shell Builds ls \| wc -l | 25, 12 |
-| 3 | Named Pipes; Ordinary vs. Named Pipes | 28 |
-| 3 | A Socket Pair on the Course VM | 29 |
-| 2 | One Kernel Call, Different Flags | 30 |
-| 2 | pidfd: A Handle on One Process | 31 |
-
-The textbook's own example programs are in `archive_textbook_examples/` for reference.
-They are not maintained: use the numbered demos in class.
 
 ## Watching any process
 
