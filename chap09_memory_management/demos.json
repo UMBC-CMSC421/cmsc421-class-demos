@@ -1,0 +1,139 @@
+{
+  "groups": [
+    {
+      "title": "From source code to a process",
+      "demos": [
+        {
+          "id": "compile",
+          "file": "01_compile_steps/run_steps.sh",
+          "title": "Follow two C files through the build",
+          "summary": "Preprocess, compile, assemble, link, load, and run.",
+          "commands": [
+            "./run_steps.sh -n"
+          ],
+          "observe": "Follow greet from its declaration to its definition and the linked call. The generated files are in steps/.",
+          "relatedFiles": [
+            "01_compile_steps/main.c",
+            "01_compile_steps/greet.c",
+            "01_compile_steps/greet.h"
+          ]
+        },
+        {
+          "id": "symbols",
+          "file": "02_binding/prog1.c",
+          "title": "Find defined and undefined symbols",
+          "summary": "Compare a global variable and a library call before and after linking.",
+          "commands": [
+            "nm prog1.o",
+            "nm prog1",
+            "./prog1"
+          ],
+          "observe": "counter is a defined global; puts remains a dynamic-library symbol in the executable."
+        },
+        {
+          "id": "addresses",
+          "file": "02_binding/where.c",
+          "title": "Compare link-time values and run-time addresses",
+          "summary": "Run the same executable twice and compare its addresses with nm.",
+          "commands": [
+            "nm where",
+            "./where",
+            "./where"
+          ],
+          "observe": "With PIE and ASLR, run-time addresses can change while symbol values in the executable stay fixed."
+        },
+        {
+          "id": "cost",
+          "file": "02_binding/cost.c",
+          "title": "Compare memory access and system-call costs",
+          "summary": "Time small and large pointer chains and a getpid system call.",
+          "commands": [
+            "./cost"
+          ],
+          "observe": "Compare the three costs on this VM. The program needs about 1 GiB of free memory; timings vary."
+        }
+      ]
+    },
+    {
+      "title": "Trace an address through memory",
+      "demos": [
+        {
+          "id": "01",
+          "file": "03_memory_models/01_base_limit.c",
+          "summary": "Check protection before relocation; compare the last legal address with the first illegal one.",
+          "commands": [
+            "./01_base_limit"
+          ],
+          "relatedFiles": [
+            "03_memory_models/walkthrough.h"
+          ]
+        },
+        {
+          "id": "02",
+          "file": "03_memory_models/02_allocation.c",
+          "summary": "Compare fit policies, then expose and remove external fragmentation.",
+          "commands": [
+            "./02_allocation"
+          ],
+          "relatedFiles": [
+            "03_memory_models/walkthrough.h"
+          ]
+        },
+        {
+          "id": "03",
+          "file": "03_memory_models/03_page_translation.c",
+          "summary": "Split, look up, and join an address while keeping the offset unchanged.",
+          "commands": [
+            "./03_page_translation"
+          ],
+          "relatedFiles": [
+            "03_memory_models/walkthrough.h"
+          ]
+        },
+        {
+          "id": "04",
+          "file": "03_memory_models/04_tlb.c",
+          "summary": "Trace hits, misses, FIFO replacement, and process tags.",
+          "commands": [
+            "./04_tlb"
+          ],
+          "relatedFiles": [
+            "03_memory_models/walkthrough.h"
+          ]
+        },
+        {
+          "id": "05",
+          "file": "03_memory_models/05_page_protection.c",
+          "summary": "Observe real Linux page permissions and child-process fault reports.",
+          "commands": [
+            "./05_page_protection"
+          ],
+          "relatedFiles": [
+            "03_memory_models/walkthrough.h"
+          ]
+        },
+        {
+          "id": "06",
+          "file": "03_memory_models/06_two_level.c",
+          "summary": "Follow two page-table indexes and compare sparse-table storage.",
+          "commands": [
+            "./06_two_level"
+          ],
+          "relatedFiles": [
+            "03_memory_models/walkthrough.h"
+          ]
+        }
+      ]
+    }
+  ],
+  "guides": [
+    {
+      "title": "Build and run",
+      "markdown": "From chap09_memory_management, run `make` to build the C demos and `make check` to check the six memory walkthroughs. Run each command from the folder containing its source file. Add `--step` to a new walkthrough to pause before each result."
+    },
+    {
+      "title": "Models and Linux behavior",
+      "markdown": "Base/limit, allocation, translation, TLB, and two-level page tables are textbook simulations. The page-protection demo uses real Linux mappings. Simulated addresses and access times do not describe the VM hardware. The older Manim visual aids are separate from this C demo sequence."
+    }
+  ]
+}

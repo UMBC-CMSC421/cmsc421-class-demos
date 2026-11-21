@@ -50,6 +50,22 @@ stay fixed. Follow the commands in `where.c` to inspect both.
 The timing results depend on the machine and workload. Use them to compare the
 three operations on the same machine, not as fixed memory or system-call costs.
 
+## Memory walkthroughs
+
+`03_memory_models/` contains six demos: base and limit, contiguous allocation,
+page-table translation, a TLB trace, Linux page protection, and two-level page
+tables. See [the walkthrough README](03_memory_models/README.md) for the sequence.
+
+From the chapter folder, build all C demos and check the new examples with:
+
+```sh
+make
+make check
+```
+
+Use `--step` on any new demo to pause before each result. Five demos simulate
+textbook mechanisms; the page-protection demo exercises the real Linux VM.
+
 ## Python visual aids
 
 `fragmentation.py` and `paging.py` are older Manim scenes, separate from these C
