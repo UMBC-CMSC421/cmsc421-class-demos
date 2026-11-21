@@ -1,31 +1,57 @@
-# Chapter 9: Main Memory
+# CMSC 421, Chapter 9: Main Memory
 
-## Purpose
-Follow a C program from source code to a running process, and see what memory accesses cost.
+Follow a C program from source code to a running process. Then compare the
+cost of a cached memory access, a large random memory access, and a system call.
+Use the course Linux VM.
 
-## Demos
-1. `01_compile_steps/`: two C files and a header, built one step at a time (preprocess, compile, assemble, link, load, run). `./run_steps.sh` pauses before each step; `make preprocess`, `make compile`, `make assemble`, `make link`, and `make run` run one step each.
-2. `02_binding/`: Day 1 address-binding demos.
-   - `prog1.c`: one global and one library call; `nm` shows T, B, and U symbols before and after linking.
-   - `where.c`: prints the run-time addresses of `main` and a global; two runs differ because of ASLR.
-   - `cost.c`: times a cache hit, a RAM access, and a kernel round trip (`getpid`).
+## Compilation and linking
 
-`fragmentation.py` and `paging.py` are older visual aids for this chapter.
+`01_compile_steps/` contains two C files and a header. Build and run them from
+that folder:
 
-## Build
-```
-cd 01_compile_steps && make     # or ./run_steps.sh
-cd 02_binding && make
+```sh
+cd 01_compile_steps
+make
+./run_steps.sh
 ```
 
-## Run
-```
+The script pauses before each step: preprocess, compile, assemble, link, load,
+and run. Use `./run_steps.sh -n` to run without pauses. The Makefile also has
+`preprocess`, `compile`, `assemble`, `link`, and `run` targets.
+
+Follow the call to `greet()`. Its declaration comes from the header, its definition
+is compiled into `greet.o`, and the linker connects the call in `main.o` to it.
+
+## Address binding and memory cost
+
+From the chapter folder:
+
+```sh
+cd 02_binding
+make
 ./prog1
-./where ; ./where
+./where
+./where
 ./cost
 ```
 
-## What Students Should Observe
-- `nm` shows `U` for names defined in another file or library, and offsets, not RAM addresses, after linking.
-- `where` prints a different address for `main` on every run, but the linker's offset stays the same.
-- A kernel round trip costs as much as many cache hits.
+If you are still in `01_compile_steps/`, use `cd ../02_binding` instead.
+
+| File | What to follow |
+|---|---|
+| `prog1.c` | Use `nm` to compare defined and undefined symbols before and after linking. |
+| `where.c` | Compare the addresses printed by two runs with the symbol values from `nm`. |
+| `cost.c` | Compare a 16 KiB pointer chain, a 512 MiB random pointer chain, and `syscall(SYS_getpid)`. The program needs about 1 GiB of free memory. |
+
+With the course VM's position-independent executable build and ASLR enabled,
+run-time addresses can change between runs. The symbol values in the executable
+stay fixed. Follow the commands in `where.c` to inspect both.
+
+The timing results depend on the machine and workload. Use them to compare the
+three operations on the same machine, not as fixed memory or system-call costs.
+
+## Python visual aids
+
+`fragmentation.py` and `paging.py` are older Manim scenes, separate from these C
+demos. The paging scene follows logical address 13 through page 3 to frame 2,
+keeping offset 1, which gives physical address 9.

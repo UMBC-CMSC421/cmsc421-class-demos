@@ -3,9 +3,9 @@
 // Every thread adds 1 to a shared counter, 2,000,000 times.
 //   cas:   try to swap in the new value, and retry if someone beat you to it
 //   mutex: lock, add, unlock
-// EXPECT: failed CAS goes from 0 at 1 thread to millions at 8. Which one's
-// faster depends on your machine. With enough CPUs the mutex wins at 4 or 8
-// threads, which is the textbook's high-contention case.
+// EXPECT: compare failed CAS attempts and elapsed time as the thread count grows.
+// Contention can cause retries. Which approach is faster depends on the workload
+// and machine; a particular thread count does not guarantee a winner.
 // BUILD: gcc -O2 -Wall -pthread cas_vs_mutex.c -o cas_vs_mutex
 // RUN:   for t in 1 2 4 8; do ./cas_vs_mutex cas $t; ./cas_vs_mutex mutex $t; done
 #include <pthread.h>
@@ -26,7 +26,8 @@ long add_cas(void) {                    // optimistic: returns failed tries
     long fails = 0;
     long old = atomic_load(&counter);
     while (!atomic_compare_exchange_weak(&counter, &old, old + 1))
-        fails++;                        // lost the race; old was reloaded
+        fails++;                        // retry with the observed value in old
+    // Weak CAS may also fail spuriously; not every failure proves a collision.
     return fails;
 }
 
@@ -42,6 +43,7 @@ void *worker(void *arg) {
         if (use_cas) my_failed += add_cas();
         else         add_mutex();
     }
+    // Count retries locally, then add once so measurement adds less contention.
     atomic_fetch_add(&failed, my_failed);
     return NULL;
 }

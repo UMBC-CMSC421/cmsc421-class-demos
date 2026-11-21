@@ -1,7 +1,7 @@
 // v4_fence.c: Peterson's again, plus one memory barrier (fence).
 // DAY 1 SLIDES 36-39. The only change from v3 is the __sync_synchronize() line.
 // The fence makes my writes land before I read your flag. It isn't a lock by itself.
-// EXPECT: 2,000,000 every run. Compare with v3.
+// EXPECT: compare the count with v3. A correct count is not proof of a valid lock.
 // It's still an experiment: flag and turn aren't atomic, so don't copy this as a real lock.
 // BUILD: gcc -O2 -pthread v4_fence.c -o v4_fence
 // RUN:   ./v4_fence

@@ -12,7 +12,9 @@ gcc -O2 -Wall -pthread 01_race_condition.c -o race
 ./race 8 20000000      # 8 threads, 20,000,000 adds each
 ```
 
-`Actual` should come out way below `Expected`, and different every time.
+Compare `Actual` with `Expected`, then run the program again. Lost updates can
+make the actual count smaller. Getting the expected count on one run does not
+make the shared access safe.
 
 ## Then the two lectures
 

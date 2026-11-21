@@ -32,7 +32,7 @@ make clean                    # delete the built programs
 |---|---|---|
 | 01 | `./01_pthread_create_join` | one thread created and joined |
 | 02 | `./02_thread_args` | four threads, each with its own argument struct, printing in any order |
-| 03 | `./03_shared_counter_race` | lost updates: four threads add to one counter and the total comes up short |
+| 03 | `./03_shared_counter_race` | lost updates: four threads add to one counter and the total can come up short |
 | 04 | `./04_mutex_counter_fix` | demo 03 with a mutex; the total is right every time |
 | 05 | `./05_openmp_intro` | OpenMP starts a team of threads from one `#pragma` line |
 | 06 | `./06_word_count_threads` | two threads each count words in half of a string, and main adds the results |
@@ -41,7 +41,8 @@ make clean                    # delete the built programs
 
 ## Notes
 
-- Run demo 03 several times. The total changes every run.
+- Run demo 03 several times. The total can change between runs. A correct total
+  on one run does not make the shared access safe.
 - Demo 03 must be built with `make`, which turns optimization off. With `gcc -O2`
   the compiler turns the whole loop into one addition and the race almost never
   shows.

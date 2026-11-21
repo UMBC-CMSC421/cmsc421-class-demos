@@ -1,5 +1,5 @@
 /*
- * Chapter 7: Deadlocks
+ * Chapter 8: Deadlocks
  * Demo 03: Banker's Algorithm safety check
  *
  * What this demo shows:
@@ -15,7 +15,9 @@ enum {
     RESOURCE_COUNT = 3
 };
 
-static void print_matrix(const char *title, int rows, int cols, const int m[rows][cols])
+/* Read the matrix without changing it. The array parameter matches the callers
+ * directly because C11 does not add const through a pointer to an array. */
+static void print_matrix(const char *title, int rows, int cols, int m[rows][cols])
 {
     printf("%s\n", title);
     for (int i = 0; i < rows; i++) {
@@ -51,6 +53,7 @@ int main(void)
     int safe_sequence[PROCESS_COUNT];
     int safe_count = 0;
 
+    /* Need is the most each process could still request before finishing. */
     for (int i = 0; i < PROCESS_COUNT; i++) {
         for (int j = 0; j < RESOURCE_COUNT; j++) {
             need[i][j] = max[i][j] - allocation[i][j];
@@ -61,6 +64,7 @@ int main(void)
     print_matrix("Max", PROCESS_COUNT, RESOURCE_COUNT, max);
     print_matrix("Need", PROCESS_COUNT, RESOURCE_COUNT, need);
 
+    /* Work is a simulation copy. The real Available vector stays unchanged. */
     for (int j = 0; j < RESOURCE_COUNT; j++) {
         work[j] = available[j];
     }
@@ -69,6 +73,7 @@ int main(void)
         int progress = 0;
 
         for (int i = 0; i < PROCESS_COUNT; i++) {
+            /* Skip completed processes. Check every resource type for the rest. */
             int can_finish = !finish[i];
 
             for (int j = 0; j < RESOURCE_COUNT && can_finish; j++) {
@@ -77,6 +82,8 @@ int main(void)
                 }
             }
 
+            /* Assume this process finishes and returns what it already holds.
+             * Its temporary extra needs are borrowed from Work and returned. */
             if (can_finish) {
                 printf("P%d can finish; work becomes ", i);
                 for (int j = 0; j < RESOURCE_COUNT; j++) {
@@ -91,6 +98,7 @@ int main(void)
             }
         }
 
+        /* A full pass found nobody who can finish with the resources left. */
         if (!progress) {
             break;
         }

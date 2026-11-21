@@ -20,6 +20,8 @@ int main(int argc, char *argv[])
     long max_mb = argc > 1 ? strtol(argv[1], NULL, 10) : 200;
     const size_t chunk_bytes = (size_t)CHUNK_MB * 1024 * 1024;
 
+    /* Keep each allocation until exit so the process accumulates resident data.
+     * Freeing each block here would reuse memory instead of growing the workload. */
     for (long used_mb = CHUNK_MB; used_mb <= max_mb; used_mb += CHUNK_MB) {
         char *block = malloc(chunk_bytes);
 

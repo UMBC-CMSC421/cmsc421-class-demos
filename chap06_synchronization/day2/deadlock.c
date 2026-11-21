@@ -2,7 +2,8 @@
 // Slides: Rules for Using Mutexes; Deadlock; Deadlock in Code.
 //   opposite: thread 1 locks a then b, thread 2 locks b then a, and they get stuck
 //   ordered:  both lock a then b, and both finish
-// The sleep(1) between the two locks makes sure it gets stuck every time.
+// The sleep(1) gives the other thread time to acquire its first lock.
+// This makes the circular wait easier to observe; scheduling can still vary.
 // EXPECT: opposite: two "holds ..., wants ..." lines, then nothing.
 // ordered: "both threads finished".
 // BUILD: gcc -O2 -Wall -pthread deadlock.c -o deadlock
@@ -24,6 +25,7 @@ void lock_both(const char *me, pthread_mutex_t *first,
     pthread_mutex_lock(first);
     printf("%s: holds %s, wants %s\n", me, name(first), name(second));
     sleep(1);                             // the other thread runs now
+    // In opposite mode, the other thread can hold second while waiting for first.
     pthread_mutex_lock(second);
     printf("%s: holds a and b\n", me);
     pthread_mutex_unlock(second);
@@ -50,6 +52,7 @@ int main(int argc, char **argv) {
     pthread_t t1, t2;
     pthread_create(&t1, NULL, thread1, NULL);
     pthread_create(&t2, NULL, thread2, NULL);
+    // These joins return only if both workers finish acquiring and releasing locks.
     pthread_join(t1, NULL);
     pthread_join(t2, NULL);
     printf("both threads finished\n");

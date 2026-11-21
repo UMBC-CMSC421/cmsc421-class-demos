@@ -5,9 +5,9 @@
 //   mutex   a plain mutex: one at a time, readers too
 //   rw      glibc's reader-writer lock (it favors readers)
 //   writer  the same lock, set to favor the writer
-// EXPECT: mutex: 1 reader at a time, and the slowest. rw: 4 readers at once and
-// way faster, but the writer waits hundreds of ms because readers keep cutting
-// in. writer: 4 at once, and the writer waits only a few ms. Rule breaks: always 0.
+// EXPECT: mutex permits one reader at a time; rw and writer permit up to four.
+// Compare elapsed time and the longest writer wait. Timing depends on scheduling.
+// Rule breaks should be 0 in every mode.
 // BUILD: gcc -O2 -Wall -pthread rwlock.c -o rwlock
 // RUN:   ./rwlock mutex      ./rwlock rw      ./rwlock writer
 #define _GNU_SOURCE // for pthread_rwlockattr_setkind_np
@@ -65,6 +65,7 @@ void read_table(void)
     int now_in = atomic_fetch_add(&readers_in, 1) + 1;
     if (atomic_load(&writers_in) > 0)
         atomic_fetch_add(&rule_breaks, 1);
+    // Several readers may update the maximum at once. Retry if another wins.
     int most = atomic_load(&most_readers);
     while (now_in > most && !atomic_compare_exchange_weak(&most_readers, &most, now_in))
         ;
@@ -122,6 +123,7 @@ int main(int argc, char **argv)
     use_rw = strcmp(argv[1], "mutex") != 0;
     pthread_rwlockattr_t attr;
     pthread_rwlockattr_init(&attr);
+    // This writer-preference option requires that readers do not lock recursively.
     if (strcmp(argv[1], "writer") == 0)
         pthread_rwlockattr_setkind_np(&attr,
                                       PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
