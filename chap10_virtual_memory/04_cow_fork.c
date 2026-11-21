@@ -34,8 +34,10 @@ int main(void)
         return 1;
     memset((char *)buf, 'P', size);             /* parent owns every page */
 
+    /* The child inherits the mapping. Its writes must leave the parent unchanged. */
     pid_t pid = fork();
     if (pid == 0) {
+        /* Take differences between checkpoints to separate reads from writes. */
         long sum = 0, before = minflt();
         for (size_t off = 0; off < size; off += page)
             sum += buf[off];                    /* read: frames stay shared */
@@ -56,6 +58,7 @@ int main(void)
         fflush(stdout);
         _exit(0);
     }
+    /* Check the parent only after the child has completed its writes. */
     waitpid(pid, NULL, 0);
     printf("parent buf[0] is still '%c'\n", buf[0]);
     return 0;

@@ -14,9 +14,7 @@ A deadlock requires all four of the following:
 4. **Circular wait**  
    A cycle of waiting processes exists.
 
-## Teaching Prompt
-
-Ask students:
+## Trace the conditions
 
 - Which of the four conditions does a mutex satisfy?
 - Which condition is broken by forcing a global lock order?

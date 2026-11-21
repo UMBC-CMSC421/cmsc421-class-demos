@@ -32,7 +32,18 @@ media/
 
 instructor/
 
-# ---- Course VM (lives in ~/CMSC421-Debian12-arm64) --------------------------
+# Local assistant instructions and settings
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.codex/
+.claude/
+.agents/
+.cursor/
+.cursorrules
+.github/copilot-instructions.md
+
+# ---- Course VM (kept outside this repository) -----------------------------
 start-vm.sh
 ssh-vm.sh
 install-vm.sh

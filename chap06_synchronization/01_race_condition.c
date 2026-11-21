@@ -4,7 +4,8 @@
 // same value, and then one of the adds gets lost.
 // counter is volatile so gcc -O2 doesn't squash the loop into one big add and
 // hide the race. It doesn't make anything atomic.
-// EXPECT: Actual comes out way below Expected, and different every run.
+// EXPECT: Actual can be below Expected. Compare several runs.
+// A correct count on one run does not make this unsynchronized access safe.
 // BUILD: gcc -O2 -Wall -pthread 01_race_condition.c -o race
 // RUN:   ./race                 2 threads, 50,000,000 adds each
 //        ./race 8 20000000      8 threads, 20,000,000 each
@@ -46,6 +47,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Every worker reads this same argument; main keeps it alive until the joins.
     args_t a = { .iters = iters };
 
     for (int i = 0; i < threads; i++) {
@@ -56,6 +58,7 @@ int main(int argc, char** argv) {
         }
     }
 
+    // Joining waits for completion. It does not protect counter++ in the workers.
     for (int i = 0; i < threads; i++) {
         pthread_join(tids[i], NULL);
     }

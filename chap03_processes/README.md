@@ -46,7 +46,7 @@ make clean            # delete the built programs
 | 09 | `./09_context_switch_pressure 500` | what it costs to create lots of processes |
 | 10 | `./10_process_state_lifecycle` | one child going from stopped, to sleeping, to zombie, to gone |
 
-## Part 2: Linux deep dive (11 to 21)
+## Part 2: Linux process inspection (11 to 21, 32, and 33)
 
 These follow the process chapter of Richard Fox, *Linux with Operating System
 Concepts* (mostly chapter 4). The Fox column is the section in the book.
@@ -67,7 +67,9 @@ Concepts* (mostly chapter 4). The Fox column is the section in the book.
 | 32 | `./32_program_vs_process.sh` | 3.1 | a program is a file; a process is that file running (two PIDs, one file) |
 | 33 | `./33_stack_frames` | 3.1 | where stack frames live: each call's frame is lower in memory; a global is not on the stack |
 
-The book I used for writing most of this code was written for CentOS 6, so some of it is out of date on Debian 12. But you can go on the offical Debian website which will include other example code as well.
+These examples adapt the Linux concepts in Fox to the course Debian 12 VM.
+Use the commands in each demo when the book shows an older command or interface.
+
 ## Part 3: Lectures 2 and 3 (22 to 31)
 
 | # | Run | What you'll see |

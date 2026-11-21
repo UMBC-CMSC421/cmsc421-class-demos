@@ -47,7 +47,7 @@ make clean            # delete the built programs
   50 ms gaps show up in the timeline and push the averages a little above the
   hand-calculated values. The comment at the top of `02_kernel_sched.c` shows
   how to turn that off and back on.
-- The course VM runs Linux 6.1, whose normal scheduler is CFS. Kernels 6.6 and
+- The course VM runs Linux 5.15.67, whose normal scheduler is CFS. Kernels 6.6 and
   later use EEVDF instead. `uname -r` shows your version.
 
 ## Textbook examples

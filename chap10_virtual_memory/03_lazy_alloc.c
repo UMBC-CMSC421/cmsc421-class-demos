@@ -26,6 +26,7 @@ static void report(const char *label)
 {
     char line[256];
     long vsz = 0, rss = 0;
+    /* Read virtual and resident sizes separately; a mapping need not be resident. */
     FILE *f = fopen("/proc/self/status", "r");
     while (f && fgets(line, sizeof line, f)) {
         sscanf(line, "VmSize: %ld kB", &vsz);
@@ -33,6 +34,7 @@ static void report(const char *label)
     }
     if (f)
         fclose(f);
+    /* Fault counts are cumulative for this process, including report() itself. */
     struct rusage ru;
     getrusage(RUSAGE_SELF, &ru);
     printf("%-16s VSZ %5ld MiB  RSS %4ld MiB  minflt %6ld  majflt %ld\n",
@@ -45,6 +47,7 @@ int main(void)
     size_t page = (size_t)sysconf(_SC_PAGESIZE);
 
     report("start");
+    /* Reserve virtual addresses first. The following writes bring pages into use. */
     char *p = mmap(NULL, 4 * GiB, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     if (p == MAP_FAILED) {
@@ -59,6 +62,7 @@ int main(void)
     p[0] = 1;                                   /* touch one page */
     report("touched 1 page");
 
+    /* Advance by one page: one byte is enough to make that page writable. */
     for (size_t off = 0; off < 256 * MiB; off += page)
         p[off] = 1;                             /* touch 65,536 pages */
     report("touched 256 MiB");

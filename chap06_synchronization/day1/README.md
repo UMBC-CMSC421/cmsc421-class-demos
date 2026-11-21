@@ -11,7 +11,7 @@ Use the course Linux VM. In this `day1` folder:
 ```sh
 make v1_race      # build the first one
 ./v1_race         # run it
-./v1_race         # run it again: you'll get a different number
+./v1_race         # run it again and compare the count
 ```
 
 ```sh
@@ -60,11 +60,13 @@ Slide numbers are from [CMSC421_Ch6_Day1_FA26.pptx].
 
 ## What you should see
 
-- **v1:** way below 2,000,000, different every time. Waiting for the threads with `pthread_join` isn't the same as protecting the counter.
+- **v1:** the count can be below 2,000,000 and can change between runs. Waiting for the threads with `pthread_join` isn't the same as protecting the counter.
 - **interrupts_user:** "CPU refused" and exit status 1. Only the kernel can turn interrupts off, and even then only on its own CPU.
 - **v2:** `./v2_turns 1000000 1000000` gets it right. `timeout 5 ./v2_turns 3 1` hangs: thread 1 finishes, and thread 0 waits forever for a turn nobody's going to give back. Exit status 124 means `timeout` killed it.
 - **v3:** run it several times: `for i in 1 2 3 4 5 6 7 8 9 10; do ./v3_peterson; done`. Some runs come up short. It's correct on paper, but real CPUs reorder memory operations. On an emulated VM you might never see it fail.
-- **v4:** 2,000,000. The fence keeps my writes in front of my read of your flag.
+- **v4:** compare its count with v3. The fence orders memory accesses, but `flag`
+  and `turn` are still non-atomic. This is a memory-ordering experiment, not a
+  correct C lock to reuse in your programs.
 - **v5 and v5b:** 2,000,000. Only one thread gets the lock, but the others spin and burn CPU, and nobody's guaranteed a turn.
 - **v6:** 2,000,000, with no lock at all. Works for one variable.
 - **v7:** the last line counts rounds where both consumers took the one item. Each step is atomic, but "check, then take" is two steps. You need a lock around both, and that's Day 2.
